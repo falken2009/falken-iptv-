@@ -475,7 +475,17 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
             ButtonTile(if (cleared) "Catalogue rechargé" else "Recharger le catalogue", primary = false,
                 modifier = Modifier.fillMaxWidth().focusRequester(first)) {
                 Session.clearCaches()
+                CatalogCache.vider()
                 cleared = true
+            }
+            // Démarrage direct sur la dernière chaîne, comme une box
+            var surLaDerniere by remember { mutableStateOf(Prefs.startOnLastChannel) }
+            ButtonTile(
+                (if (surLaDerniere) "☑" else "☐") + "  Démarrer sur la dernière chaîne regardée",
+                Modifier.fillMaxWidth(), primary = false
+            ) {
+                surLaDerniere = !surLaDerniere
+                Prefs.startOnLastChannel = surLaDerniere
             }
             PremiumSettings()
             ConnectionCheckPanel()

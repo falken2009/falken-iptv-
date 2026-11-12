@@ -546,34 +546,39 @@ private fun EpisodeRow(e: Episode, onPlay: (Long?) -> Unit) {
 
 @Composable
 fun SearchScreen(nav: Navigator) {
-    if (Session.api == null) {
-        XtreamOnly("la recherche de films et séries")
-        return
-    }
+    val xtream = Session.api != null
     val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
     var movies by remember { mutableStateOf(Session.allMovies) }
     var series by remember { mutableStateOf(Session.allSeries) }
+    // Les chaînes entrent aussi dans la recherche : un seul endroit pour tout trouver
+    var channelsLoaded by remember { mutableStateOf(Session.liveChannels.isNotEmpty()) }
     val field = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         runCatching { field.requestFocus() }
+        runCatching { Session.ensureLive() }
+        channelsLoaded = true
+        if (!xtream) {
+            movies = emptyList()
+            series = emptyList()
+            return@LaunchedEffect
+        }
         if (Prefs.hasPin) {
             // Noms des catégories pour cacher celles qui sont verrouillées
             if (Session.vodCategories.isEmpty()) runCatching { Session.api?.vodCategories() }.getOrNull()?.let { Session.vodCategories = it }
             if (Session.seriesCategories.isEmpty()) runCatching { Session.api?.seriesCategories() }.getOrNull()?.let { Session.seriesCategories = it }
         }
-        if (movies == null) {
-            movies = runCatching { Session.api?.allMovies() }.getOrNull() ?: emptyList()
-            Session.allMovies = movies
-        }
-        if (series == null) {
-            series = runCatching { Session.api?.allSeries() }.getOrNull() ?: emptyList()
-            Session.allSeries = series
-        }
+        runCatching { Session.ensureVod() }
+        movies = Session.allMovies ?: emptyList()
+        series = Session.allSeries ?: emptyList()
     }
 
     val cleaned = Catalog.cleanQuery(query)
+    val lockedLive = Session.liveCategories.filter { Prefs.isLocked(it.name) }.map { it.id }.toSet()
+    val channelResults = remember(cleaned, channelsLoaded, lockedLive, Prefs.unlocked) {
+        Catalog.rank(Session.liveChannels.filter { it.categoryId !in lockedLive }, cleaned, { it.name })
+    }
     val lockedVod = Session.vodCategories.filter { Prefs.isLocked(it.name) }.map { it.id }.toSet()
     val lockedSeries = Session.seriesCategories.filter { Prefs.isLocked(it.name) }.map { it.id }.toSet()
     val movieResults = remember(cleaned, movies, lockedVod) {
@@ -589,7 +594,7 @@ fun SearchScreen(nav: Navigator) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Titre d'un film ou d'une série") },
+                    label = { Text("Une chaîne, un film ou une série") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
                     keyboardActions = KeyboardActions(onSearch = { }),
@@ -610,15 +615,26 @@ fun SearchScreen(nav: Navigator) {
             androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
 
             when {
-                movies == null || series == null -> Loading()
-                cleaned.isEmpty() -> Message("Recherche dans tout le catalogue", "Films et séries de ton abonnement.")
-                movieResults.isEmpty() && seriesResults.isEmpty() -> Message("Aucun résultat pour « $cleaned »")
+                movies == null || series == null || !channelsLoaded -> Loading()
+                cleaned.isEmpty() -> Message("Recherche dans tout le catalogue", "Chaînes, films et séries de ton abonnement.")
+                channelResults.isEmpty() && movieResults.isEmpty() && seriesResults.isEmpty() ->
+                    Message("Aucun résultat pour « $cleaned »")
                 else -> LazyVerticalGrid(
                     columns = GridCells.Adaptive(128.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(8.dp)
                 ) {
+                    if (channelResults.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text("Chaînes (${channelResults.size})", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        }
+                        items(channelResults) { c ->
+                            PosterCard(c.name, c.icon) {
+                                nav.go(Screen.Play(liveItemFor(c, channelResults)))
+                            }
+                        }
+                    }
                     if (movieResults.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Text("Films (${movieResults.size})", fontWeight = FontWeight.Bold, fontSize = 17.sp)

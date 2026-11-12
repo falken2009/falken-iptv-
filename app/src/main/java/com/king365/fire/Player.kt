@@ -349,6 +349,8 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
         retries = 0
         vlcRetries = 0
         vlcPaused = false
+        // Mémorise la chaîne : redémarrage sur la dernière vue, et bouton « chaîne précédente »
+        Prefs.rememberChannel(current)
         // Formats que le lecteur de la Fire TV ne lit pas (AVI, WMV, DivX…) : VLC directement, sans attendre l'échec
         useVlc = VlcMemory.contains(current.url) || VlcMemory.needsVlc(current.url)
         if (useVlc) {
