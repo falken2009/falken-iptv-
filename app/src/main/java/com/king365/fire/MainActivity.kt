@@ -184,7 +184,7 @@ fun AppRoot() {
         // (la version boutique est mise à jour par l'Amazon Appstore)
         if (!showSplash && loggedIn && !Premium.enabled) {
             UpdatePrompt(trigger = Updater.requests, onNothingNew = {
-                if (Updater.requests > 0) Updater.lastResult = "Ta version est à jour ✓"
+                if (Updater.requests > 0) Updater.lastResult = Updater.diagnostic
             })
         }
 

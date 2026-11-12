@@ -442,6 +442,17 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
                 Updater.requests++
             }
             Updater.lastResult?.let { Text(it, color = Muted, fontSize = 12.sp) }
+            // Rapport détaillé : montre ce que l'appli voit sur GitHub, étape par étape
+            val portee = rememberCoroutineScope()
+            var rapport by remember { mutableStateOf<String?>(null) }
+            ButtonTile("🩺  Diagnostic des mises à jour", Modifier.fillMaxWidth(), primary = false) {
+                rapport = "Vérification en cours…"
+                portee.launch { rapport = Updater.diagnose(context) }
+            }
+            rapport?.let {
+                Text(it, color = Muted, fontSize = 12.sp, lineHeight = 17.sp,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
+            }
             if (Session.isM3U) {
                 InfoLine("Playlist M3U", Prefs.m3uUrl.take(60))
             } else {
