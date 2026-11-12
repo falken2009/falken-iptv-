@@ -1,23 +1,70 @@
-name: Android CI
- 
+name: Build Fire TV APK
+
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
- 
+    branches: [main]
+
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 11
-      uses: actions/setup-java@v3
-      with:
-        java-version: '11'
-        distribution: 'temurin'
-        cache: gradle
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+      - uses: actions/checkout@v4
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Installer Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Compiler l'application (version perso, tout débloqué)
+        run: gradle assemblePersoRelease --stacktrace
+
+      - name: Renommer l'APK
+        run: cp app/build/outputs/apk/perso/release/app-perso-release.apk Falken-IPTV.apk
+
+      # Version Amazon Appstore avec Premium : n'empêche jamais la version perso d'être publiée
+      - name: Compiler la version boutique (Premium)
+        id: store
+        continue-on-error: true
+        run: |
+          gradle assembleStoreRelease --stacktrace
+          cp app/build/outputs/apk/store/release/app-store-release.apk Falken-IPTV-Store.apk
+
+      - name: Mettre la version boutique à disposition (onglet Actions)
+        if: steps.store.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Falken-IPTV-Store-apk
+          path: Falken-IPTV-Store.apk
+
+      - name: Mettre l'APK à disposition (onglet Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Falken-IPTV-apk
+          path: Falken-IPTV.apk
+
+      # Sans fichier de nouveautés, la publication échouait et l'appli ne voyait pas la mise à jour
+      - name: Préparer les nouveautés
+        run: |
+          if [ ! -s NOUVEAUTES.txt ]; then
+            git log -1 --pretty=%s > NOUVEAUTES.txt
+          fi
+
+      - name: Publier l'APK (lien de téléchargement direct pour le Fire Stick)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Falken IPTV ${{ github.run_number }}
+          files: Falken-IPTV.apk
+          make_latest: true
+          # Nouveautés affichées dans l'appli au moment de la mise à jour
+          body_path: NOUVEAUTES.txt
