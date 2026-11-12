@@ -1,4 +1,6 @@
-• Films plus rapides à démarrer : la lecture reprend directement au bon endroit.
-• Les formats AVI, WMV, DivX, MPEG… partent directement avec VLC.
-• Un film bloqué plus de 15 secondes passe tout seul sur VLC.
-• Les nouveautés de chaque version s'affichent maintenant ici, au moment de la mise à jour.
+• L'accueil sépare maintenant « Reprendre un film » et « Reprendre une série ».
+• Recherche globale : les chaînes apparaissent dans la recherche, à côté des films et des séries.
+• Ouverture beaucoup plus rapide : le catalogue est gardé sur la Fire TV et mis à jour en arrière-plan.
+• Nouveau réglage « Démarrer sur la dernière chaîne regardée », comme une box.
+• La fenêtre de mise à jour se ferme toute seule une fois l'installation lancée.
+• Nouveau bouton « Diagnostic des mises à jour » dans les Réglages.

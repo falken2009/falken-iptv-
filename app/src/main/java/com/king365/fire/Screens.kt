@@ -283,9 +283,13 @@ fun HomeScreen(nav: Navigator) {
         }
     }
 
-    val hasContinue = remember(Prefs.progressTick, Prefs.currentProfile) { Prefs.inProgress().isNotEmpty() }
-    val big = if (hasContinue) 150.dp else 190.dp
-    val small = if (hasContinue) 70.dp else 84.dp
+    // Reprises en cours, films et séries séparés
+    val started = remember(Prefs.progressTick, Prefs.currentProfile) { Prefs.inProgress() }
+    val filmsEnCours = remember(started) { startedMovies(started) }
+    val seriesEnCours = remember(started) { startedEpisodes(started) }
+    val rangees = (if (filmsEnCours.isNotEmpty()) 1 else 0) + (if (seriesEnCours.isNotEmpty()) 1 else 0)
+    val big = when (rangees) { 0 -> 190.dp; 1 -> 150.dp; else -> 118.dp }
+    val small = when (rangees) { 0 -> 84.dp; 1 -> 70.dp; else -> 60.dp }
 
     KingBackground {
         Column(
@@ -334,9 +338,13 @@ fun HomeScreen(nav: Navigator) {
                 SmallTile("RÉGLAGES", Icons.Outlined.Settings, small) { nav.go(Screen.Settings) }
             }
 
-            if (hasContinue) {
+            if (filmsEnCours.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                ContinueRow(nav)
+                ContinueRow(nav, "Reprendre un film", filmsEnCours)
+            }
+            if (seriesEnCours.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                ContinueRow(nav, "Reprendre une série", seriesEnCours)
             }
 
             Spacer(Modifier.weight(1f))
@@ -442,6 +450,17 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
                 Updater.requests++
             }
             Updater.lastResult?.let { Text(it, color = Muted, fontSize = 12.sp) }
+            // Rapport détaillé : montre ce que l'appli voit sur GitHub, étape par étape
+            val portee = rememberCoroutineScope()
+            var rapport by remember { mutableStateOf<String?>(null) }
+            ButtonTile("🩺  Diagnostic des mises à jour", Modifier.fillMaxWidth(), primary = false) {
+                rapport = "Vérification en cours…"
+                portee.launch { rapport = Updater.diagnose(context) }
+            }
+            rapport?.let {
+                Text(it, color = Muted, fontSize = 12.sp, lineHeight = 17.sp,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
+            }
             if (Session.isM3U) {
                 InfoLine("Playlist M3U", Prefs.m3uUrl.take(60))
             } else {
@@ -464,7 +483,17 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
             ButtonTile(if (cleared) "Catalogue rechargé" else "Recharger le catalogue", primary = false,
                 modifier = Modifier.fillMaxWidth().focusRequester(first)) {
                 Session.clearCaches()
+                CatalogCache.vider()
                 cleared = true
+            }
+            // Démarrage direct sur la dernière chaîne, comme une box
+            var surLaDerniere by remember { mutableStateOf(Prefs.startOnLastChannel) }
+            ButtonTile(
+                (if (surLaDerniere) "☑" else "☐") + "  Démarrer sur la dernière chaîne regardée",
+                Modifier.fillMaxWidth(), primary = false
+            ) {
+                surLaDerniere = !surLaDerniere
+                Prefs.startOnLastChannel = surLaDerniere
             }
             PremiumSettings()
             ConnectionCheckPanel()

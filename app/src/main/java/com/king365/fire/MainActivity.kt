@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -23,6 +24,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Prefs.init(this)
+        // Après une mise à jour, remet l'icône du thème en place : sans ça l'appli pouvait
+        // disparaître de l'écran d'accueil du Fire Stick
+        AppIcon.apply(this, Prefs.theme)
+        CatalogCache.init(this)
         Tmdb.init(this)
         LiveFormat.init(this)
         VlcMemory.init(this)
@@ -138,6 +143,14 @@ fun AppRoot() {
                     nav.go(Screen.Play(it))
                 }
             }
+            // Démarrage direct sur la dernière chaîne regardée (réglable dans Réglages)
+            var lastChannelOpened by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(showSplash) {
+                if (showSplash || lastChannelOpened) return@LaunchedEffect
+                lastChannelOpened = true
+                if (!Prefs.startOnLastChannel) return@LaunchedEffect
+                Prefs.savedChannel()?.let { nav.go(Screen.Play(it)) }
+            }
             BackHandler(enabled = nav.canGoBack) { nav.back() }
             val screen = nav.current
             // Garde la position dans les listes quand on revient en arrière
@@ -184,7 +197,7 @@ fun AppRoot() {
         // (la version boutique est mise à jour par l'Amazon Appstore)
         if (!showSplash && loggedIn && !Premium.enabled) {
             UpdatePrompt(trigger = Updater.requests, onNothingNew = {
-                if (Updater.requests > 0) Updater.lastResult = "Ta version est à jour ✓"
+                if (Updater.requests > 0) Updater.lastResult = Updater.diagnostic
             })
         }
 

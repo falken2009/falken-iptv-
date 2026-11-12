@@ -174,15 +174,20 @@ fun whiteFieldColors() = OutlinedTextFieldDefaults.colors(
 
 // ---------- Continuer à regarder ----------
 
+/// Films commencés, puis épisodes commencés : deux rangées séparées sur l'accueil
+fun startedMovies(all: List<Prefs.Progress>) = all.filter { it.key.startsWith("movie-") }
+fun startedEpisodes(all: List<Prefs.Progress>) = all.filter { it.key.startsWith("episode-") }
+
 @Composable
-fun ContinueRow(nav: Navigator) {
+fun ContinueRow(nav: Navigator, title: String = "Continuer à regarder", started: List<Prefs.Progress>? = null) {
     val tick = Prefs.progressTick
-    val started = remember(tick, Prefs.currentProfile) { Prefs.inProgress() }
-    if (started.isEmpty()) return
+    val fallback = remember(tick, Prefs.currentProfile) { Prefs.inProgress() }
+    val entries = started ?: fallback
+    if (entries.isEmpty()) return
     Column(Modifier.fillMaxWidth()) {
-        Text("Continuer à regarder", fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(6.dp)) {
-            items(started, key = { it.key }) { p ->
+            items(entries, key = { it.key }) { p ->
                 FocusCard(
                     onClick = {
                         val url = p.url ?: return@FocusCard

@@ -62,8 +62,13 @@ object Updater {
         if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else info.versionCode
     }.getOrDefault(0)
 
+    /// Explication du dernier « rien de nouveau » (affichée dans Réglages)
+    @Volatile var diagnostic: String = ""
+        private set
+
     /// Dernière version publiée, ou null si rien de plus récent
     suspend fun check(context: Context): Release? = withContext(Dispatchers.IO) {
+        val installed = installedNumber(context)
         runCatching {
             val conn = URL("https://api.github.com/repos/$repo/releases/latest").openConnection() as HttpURLConnection
             conn.connectTimeout = 10_000
@@ -71,21 +76,120 @@ object Updater {
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             conn.setRequestProperty("User-Agent", "FalkenIPTV-Updater")
             val json = try {
-                if (conn.responseCode != 200) return@runCatching null
-                JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                when (val code = conn.responseCode) {
+                    200 -> JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                    404 -> {
+                        diagnostic = "Aucune version publiée trouvée sur $repo. Le dépôt doit être public " +
+                            "et l'onglet Releases doit contenir une version."
+                        return@runCatching null
+                    }
+                    403, 429 -> {
+                        diagnostic = "GitHub limite les vérifications pour le moment, réessaie dans une heure."
+                        return@runCatching null
+                    }
+                    else -> {
+                        diagnostic = "GitHub a répondu une erreur ($code)."
+                        return@runCatching null
+                    }
+                }
             } finally {
                 conn.disconnect()
             }
-            val number = json.optString("tag_name").filter { it.isDigit() }.toIntOrNull() ?: return@runCatching null
-            val assets = json.optJSONArray("assets") ?: return@runCatching null
+            val tag = json.optString("tag_name")
+            val number = tag.filter { it.isDigit() }.toIntOrNull()
+            if (number == null) {
+                diagnostic = "La dernière version publiée ($tag) n'a pas de numéro."
+                return@runCatching null
+            }
+            val assets = json.optJSONArray("assets")
             var apk: String? = null
-            for (i in 0 until assets.length()) {
+            if (assets != null) for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
                 if (a.optString("name").endsWith(".apk")) apk = a.optString("browser_download_url")
             }
             val notes = json.optString("body").trim().takeIf { it != "null" } ?: ""
-            if (apk != null && number > installedNumber(context)) Release(number, apk, notes) else null
-        }.getOrNull()
+            when {
+                apk == null -> {
+                    diagnostic = "La version $tag sur GitHub ne contient pas de fichier APK."
+                    null
+                }
+                number <= installed -> {
+                    diagnostic = "Ta version est à jour ✓ (installée : 1.$installed, dernière publiée sur GitHub : 1.$number)"
+                    null
+                }
+                else -> Release(number, apk, notes)
+            }
+        }.getOrElse {
+            diagnostic = "Impossible de joindre GitHub : vérifie la connexion internet."
+            null
+        }
+    }
+
+    /// Rapport détaillé, étape par étape, de ce que l'appli voit sur GitHub.
+    /// Sert à comprendre pourquoi une mise à jour n'est pas proposée.
+    suspend fun diagnose(context: Context): String = withContext(Dispatchers.IO) {
+        val lignes = StringBuilder()
+        val installed = installedNumber(context)
+        lignes.appendLine("Dépôt GitHub : $repo")
+        lignes.appendLine("Version installée : 1.$installed")
+        lignes.appendLine("Adresse interrogée :")
+        lignes.appendLine("https://api.github.com/repos/$repo/releases/latest")
+        lignes.appendLine()
+        runCatching {
+            val conn = URL("https://api.github.com/repos/$repo/releases/latest").openConnection() as HttpURLConnection
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 15_000
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "FalkenIPTV-Updater")
+            val code: Int
+            val corps: String
+            try {
+                code = conn.responseCode
+                corps = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                    ?.bufferedReader()?.use { it.readText() } ?: ""
+            } finally {
+                conn.disconnect()
+            }
+            lignes.appendLine("Réponse de GitHub : $code")
+            when (code) {
+                200 -> {
+                    val json = JSONObject(corps)
+                    val tag = json.optString("tag_name")
+                    lignes.appendLine("Dernière version publiée : $tag")
+                    val number = tag.filter { it.isDigit() }.toIntOrNull()
+                    lignes.appendLine("Numéro lu dans le nom : ${number ?: "aucun (le nom doit contenir des chiffres)"}")
+                    val assets = json.optJSONArray("assets")
+                    val noms = buildList {
+                        if (assets != null) for (i in 0 until assets.length()) add(assets.getJSONObject(i).optString("name"))
+                    }
+                    lignes.appendLine("Fichiers joints : " + (noms.joinToString(", ").ifEmpty { "aucun" }))
+                    val apk = noms.any { it.endsWith(".apk") }
+                    lignes.appendLine("Fichier APK présent : " + if (apk) "oui" else "NON")
+                    lignes.appendLine()
+                    lignes.appendLine(
+                        when {
+                            !apk -> "➜ La version publiée ne contient pas d'APK : la compilation GitHub s'est arrêtée avant de le joindre."
+                            number == null -> "➜ Renomme la version avec un numéro, par exemple « Falken IPTV 17 »."
+                            number <= installed -> "➜ Rien de plus récent : publie une version au numéro supérieur à $installed."
+                            else -> "➜ Une mise à jour est disponible : 1.$number."
+                        }
+                    )
+                }
+                404 -> lignes.appendLine(
+                    "➜ Introuvable. Deux causes possibles : le dépôt est en privé " +
+                        "(Settings → Danger Zone → Change visibility → Make public), " +
+                        "ou aucune version n'est publiée dans l'onglet Releases."
+                )
+                403, 429 -> lignes.appendLine("➜ GitHub limite les vérifications. Réessaie dans une heure.")
+                else -> lignes.appendLine("➜ Erreur inattendue de GitHub.")
+            }
+        }.onFailure {
+            lignes.appendLine("Réponse de GitHub : aucune")
+            lignes.appendLine("➜ Impossible de joindre GitHub. Vérifie la connexion internet du Fire Stick.")
+        }
+        lignes.appendLine()
+        lignes.append("Installation d'applis autorisée : " + if (canInstall(context)) "oui" else "NON (à autoriser à la première mise à jour)")
+        lignes.toString().trim()
     }
 
     /// Télécharge l'APK ; `progress` reçoit un pourcentage (ou -1 si la taille est inconnue)
@@ -135,6 +239,14 @@ object Updater {
         throw java.io.IOException("Trop de redirections.")
     }
 
+    /// Numéro de version réellement contenu dans le fichier téléchargé.
+    /// Permet de voir si GitHub a servi un ancien APK au lieu du nouveau.
+    @Suppress("DEPRECATION")
+    fun apkNumber(context: Context, apk: File): Int? = runCatching {
+        val info = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0) ?: return null
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else info.versionCode
+    }.getOrNull()
+
     /// L'appli a-t-elle le droit d'installer des applis ? (à autoriser une seule fois)
     fun canInstall(context: Context): Boolean =
         Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
@@ -175,7 +287,8 @@ fun UpdatePrompt(trigger: Int = 0, onNothingNew: (() -> Unit)? = null) {
         val found = Updater.check(context)
         if (found == null) onNothingNew?.invoke() else { Updater.lastResult = null; release = found }
     }
-    val r = release ?: return
+    // Sécurité : jamais de fenêtre pour une version déjà installée
+    val r = release?.takeIf { it.number > Updater.installedNumber(context) } ?: return
 
     LaunchedEffect(r) { runCatching { focus.requestFocus() } }
     androidx.activity.compose.BackHandler { release = null }
@@ -217,8 +330,22 @@ fun UpdatePrompt(trigger: Int = 0, onNothingNew: (() -> Unit)? = null) {
                         runCatching {
                             Updater.download(context, r) { pct -> status = if (pct >= 0) "Téléchargement : $pct %" else "Téléchargement…" }
                         }.onSuccess { apk ->
-                            status = "Confirme l'installation à l'écran."
+                            // Vérifie le contenu du fichier avant d'installer : si GitHub a servi
+                            // un ancien APK, l'installation ne changerait rien et on le dit ici.
+                            val dedans = Updater.apkNumber(context, apk)
+                            val installee = Updater.installedNumber(context)
+                            if (dedans != null && dedans <= installee) {
+                                status = "Le fichier téléchargé contient la version 1.$dedans, " +
+                                    "soit la même que celle déjà installée (1.$installee). " +
+                                    "La compilation GitHub n'a pas publié le nouvel APK."
+                                busy = false
+                                return@launch
+                            }
                             Updater.install(context, apk)
+                            // La fenêtre se ferme : l'écran d'installation d'Android prend la suite.
+                            // Sinon elle restait affichée par-dessus l'appli une fois la mise à jour faite.
+                            Updater.lastResult = null
+                            release = null
                         }.onFailure { e ->
                             status = "Échec du téléchargement : " + friendlyMessage(e)
                         }
