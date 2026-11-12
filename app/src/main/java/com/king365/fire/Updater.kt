@@ -279,7 +279,8 @@ fun UpdatePrompt(trigger: Int = 0, onNothingNew: (() -> Unit)? = null) {
         val found = Updater.check(context)
         if (found == null) onNothingNew?.invoke() else { Updater.lastResult = null; release = found }
     }
-    val r = release ?: return
+    // Sécurité : jamais de fenêtre pour une version déjà installée
+    val r = release?.takeIf { it.number > Updater.installedNumber(context) } ?: return
 
     LaunchedEffect(r) { runCatching { focus.requestFocus() } }
     androidx.activity.compose.BackHandler { release = null }
@@ -321,8 +322,11 @@ fun UpdatePrompt(trigger: Int = 0, onNothingNew: (() -> Unit)? = null) {
                         runCatching {
                             Updater.download(context, r) { pct -> status = if (pct >= 0) "Téléchargement : $pct %" else "Téléchargement…" }
                         }.onSuccess { apk ->
-                            status = "Confirme l'installation à l'écran."
                             Updater.install(context, apk)
+                            // La fenêtre se ferme : l'écran d'installation d'Android prend la suite.
+                            // Sinon elle restait affichée par-dessus l'appli une fois la mise à jour faite.
+                            Updater.lastResult = null
+                            release = null
                         }.onFailure { e ->
                             status = "Échec du téléchargement : " + friendlyMessage(e)
                         }
