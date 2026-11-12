@@ -12,13 +12,8 @@ android {
         applicationId = "com.king365.fire"
         minSdk = 22
         targetSdk = 34
-        // Chaque compilation GitHub porte un numéro plus grand : la mise à jour s'installe par-dessus.
-        // Le dépôt a changé et repart à 1 : on décale pour rester au-dessus de la version déjà installée (1.16)
-        // Le numéro est calculé par la compilation GitHub (FALKEN_BUILD) pour que la version
-        // publiée et la version installée portent toujours exactement le même numéro.
-        val decalage = 16
-        val build = System.getenv("FALKEN_BUILD")?.toIntOrNull()
-            ?: (decalage + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1))
+        // Chaque compilation GitHub porte un numéro plus grand : la mise à jour s'installe par-dessus
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionCode = build
         versionName = "1.$build"
         // Fire TV : processeurs ARM uniquement (garde l'appli plus légère avec VLC)

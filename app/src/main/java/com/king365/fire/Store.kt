@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.Normalizer
@@ -362,44 +361,6 @@ object Prefs {
         saveSubscriptions()
     }
 
-    // ---------- Dernière chaîne regardée ----------
-
-    /// Démarrer directement sur la dernière chaîne, comme une box
-    var startOnLastChannel: Boolean
-        get() = sp.getBoolean("startOnLast", false)
-        set(v) = sp.edit().putBoolean("startOnLast", v).apply()
-
-    /// Chaîne en cours, pour la rouvrir au prochain démarrage et pour le bouton « chaîne précédente »
-    var lastChannel: PlayItem? = null
-        private set
-    var previousChannel: PlayItem? = null
-        private set
-
-    fun rememberChannel(item: PlayItem) {
-        if (!item.live || item.url.isBlank()) return
-        if (lastChannel?.url == item.url) return
-        previousChannel = lastChannel
-        lastChannel = item
-        sp.edit()
-            .putString(pkey("lastChannelUrl"), item.url)
-            .putString(pkey("lastChannelTitle"), item.title)
-            .putString(pkey("lastChannelLogo"), item.logo ?: "")
-            .putString(pkey("lastChannelId"), item.streamId ?: "")
-            .apply()
-    }
-
-    /// Dernière chaîne enregistrée au démarrage précédent
-    fun savedChannel(): PlayItem? {
-        val url = sp.getString(pkey("lastChannelUrl"), null)?.takeIf { it.isNotBlank() } ?: return null
-        return PlayItem(
-            title = sp.getString(pkey("lastChannelTitle"), null) ?: "Chaîne",
-            url = url,
-            live = true,
-            streamId = sp.getString(pkey("lastChannelId"), null)?.takeIf { it.isNotBlank() },
-            logo = sp.getString(pkey("lastChannelLogo"), null)?.takeIf { it.isNotBlank() }
-        )
-    }
-
     // ---------- Contrôle parental ----------
 
     var hasPin by mutableStateOf(false)
@@ -501,50 +462,6 @@ object Session {
 
     suspend fun ensureLive() {
         if (liveChannels.isNotEmpty()) return
-        // Copie gardée sur l'appareil : l'appli s'ouvre tout de suite, la liste à jour arrive ensuite
-        if (CatalogCache.chargerChaines()) {
-            rafraichirChainesEnFond()
-            return
-        }
-        chargerChaines()
-        CatalogCache.enregistrerChaines()
-    }
-
-    private val fond = kotlinx.coroutines.CoroutineScope(
-        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
-    )
-
-    /// Va chercher la liste à jour sans faire attendre l'écran
-    private fun rafraichirChainesEnFond() {
-        fond.launch {
-            runCatching {
-                chargerChaines()
-                CatalogCache.enregistrerChaines()
-            }
-        }
-    }
-
-    /// Films et séries complets, repris de la copie gardée sur l'appareil quand elle existe
-    suspend fun ensureVod() {
-        if (allMovies != null && allSeries != null) return
-        if (api == null) return
-        if (CatalogCache.chargerVod() && allMovies != null && allSeries != null) {
-            fond.launch { runCatching { chargerVod(); CatalogCache.enregistrerVod() } }
-            return
-        }
-        chargerVod()
-        CatalogCache.enregistrerVod()
-    }
-
-    private suspend fun chargerVod() {
-        val api = api ?: return
-        if (vodCategories.isEmpty()) runCatching { vodCategories = api.vodCategories() }
-        if (seriesCategories.isEmpty()) runCatching { seriesCategories = api.seriesCategories() }
-        allMovies = runCatching { api.allMovies() }.getOrNull() ?: allMovies ?: emptyList()
-        allSeries = runCatching { api.allSeries() }.getOrNull() ?: allSeries ?: emptyList()
-    }
-
-    private suspend fun chargerChaines() {
         if (isM3U) {
             val playlist = M3U.parse(Http.text(Prefs.m3uUrl, timeoutMs = 120_000))
             if (playlist.channels.isEmpty()) throw java.io.IOException("Aucune chaîne trouvée dans la playlist.")
