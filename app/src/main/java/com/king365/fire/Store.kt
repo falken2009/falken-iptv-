@@ -30,7 +30,8 @@ object Prefs {
         subscriptions = loadSubscriptions()
         lockedCategories = sp.getStringSet("lockedCategories", emptySet())?.toSet() ?: emptySet()
         hasPin = !sp.getString("pin", null).isNullOrEmpty()
-        tmdbKey = sp.getString("tmdbKey", "") ?: ""
+        // Clé enregistrée dans les Réglages, sinon celle intégrée à l'appli
+        tmdbKey = (sp.getString("tmdbKey", "") ?: "").ifBlank { BuildConfig.TMDB_KEY }
         loadProfileData()
     }
 

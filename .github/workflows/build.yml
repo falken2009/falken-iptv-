@@ -30,6 +30,8 @@ jobs:
           gradle-version: "8.10.2"
 
       - name: Compiler l'application (version perso, tout débloqué)
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: gradle assemblePersoRelease --stacktrace
 
       - name: Renommer l'APK

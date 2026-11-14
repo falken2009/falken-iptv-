@@ -63,12 +63,15 @@ android {
     productFlavors {
         create("perso") {
             dimension = "distribution"
+            // Clé TMDB intégrée à l'appli, lue dans le secret GitHub TMDB_API_KEY (jamais écrite dans le code)
+            buildConfigField("String", "TMDB_KEY", "\"${System.getenv("TMDB_API_KEY") ?: ""}\"")
             buildConfigField("boolean", "PREMIUM", "false")
             buildConfigField("boolean", "TMDB_ALLOWED", "true")
             buildConfigField("String", "LICENCE_SECRET", "\"\"")
         }
         create("licence") {
             dimension = "distribution"
+            buildConfigField("String", "TMDB_KEY", "\"\"")
             buildConfigField("boolean", "PREMIUM", "true")
             buildConfigField("boolean", "TMDB_ALLOWED", "true")
             // Phrase secrète qui sert à fabriquer les codes d'activation.
@@ -79,6 +82,7 @@ android {
         }
         create("store") {
             dimension = "distribution"
+            buildConfigField("String", "TMDB_KEY", "\"\"")
             buildConfigField("boolean", "PREMIUM", "true")
             buildConfigField("String", "LICENCE_SECRET", "\"\"")
             // La clé TMDB gratuite est réservée à l'usage non commercial
