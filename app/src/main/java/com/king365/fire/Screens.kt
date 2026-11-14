@@ -445,6 +445,30 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
                 runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
             }
             InfoLine("Version de l'appli", version)
+            // Sauvegarde des favoris : survit à une désinstallation
+            var saveMessage by remember { mutableStateOf<String?>(null) }
+            var pendingRestore by remember { mutableStateOf(false) }
+            val storageAccess = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+            ) {
+                saveMessage = if (pendingRestore) {
+                    if (Sauvegarde.restore()) "Favoris remis ✓" else "Aucune sauvegarde trouvée (ou accès au stockage refusé)"
+                } else {
+                    if (Sauvegarde.save()) "Sauvegarde faite dans Documents/Falken-IPTV ✓" else "Sauvegarde impossible (accès au stockage refusé)"
+                }
+            }
+            val storagePermissions = arrayOf(
+                android.Manifest.permission.READ_EXTERNAL_STORAGE, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
+            ButtonTile("💾  Sauvegarder mes favoris", Modifier.fillMaxWidth(), primary = false) {
+                pendingRestore = false
+                storageAccess.launch(storagePermissions)
+            }
+            ButtonTile("♻  Remettre mes favoris sauvegardés", Modifier.fillMaxWidth(), primary = false) {
+                pendingRestore = true
+                storageAccess.launch(storagePermissions)
+            }
+            saveMessage?.let { Text(it, color = Muted, fontSize = 12.sp) }
             ButtonTile("🌐  " + Lang.t("Langue de l'interface"), Modifier.fillMaxWidth(), primary = false) { onLanguage() }
             ButtonTile(Lang.t("🔄  Rechercher une mise à jour"), Modifier.fillMaxWidth(), primary = false) {
                 Updater.lastResult = "Recherche…"

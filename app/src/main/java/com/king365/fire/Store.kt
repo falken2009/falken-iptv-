@@ -154,6 +154,7 @@ object Prefs {
     fun toggleFavorite(id: String) {
         favorites = if (id in favorites) favorites - id else favorites + id
         sp.edit().putStringSet(pkey("favorites"), favorites).apply()
+        Sauvegarde.saveAsync()
     }
 
     // ---------- Tri et regroupement des films ----------
@@ -291,6 +292,43 @@ object Prefs {
                 .put("r", it.rating).put("e", it.ext).put("c", it.categoryId).put("y", it.year?.toString()))
         }
         sp.edit().putString(pkey("watchlist"), a.toString()).apply()
+        Sauvegarde.saveAsync()
+    }
+
+    // ---------- Sauvegarde des favoris (chaînes, films, séries) ----------
+
+    fun exportBackup(): String {
+        val root = JSONObject()
+        (profiles.map { it.id } + "default").distinct().forEach { id ->
+            val suffix = if (id == "default") "" else ".$id"
+            root.put(id, JSONObject()
+                .put("favorites", JSONArray(sp.getStringSet("favorites$suffix", emptySet())?.toList() ?: emptyList<String>()))
+                .put("watchlist", JSONArray(sp.getString("watchlist$suffix", "[]") ?: "[]")))
+        }
+        return root.toString()
+    }
+
+    /// Remet les favoris sauvegardés (sans effacer ceux qui existent déjà) ; vrai si quelque chose a été remis
+    fun importBackup(text: String): Boolean {
+        val root = JSONObject(text)
+        var restored = false
+        val known = profiles.map { it.id } + "default"
+        for (id in root.keys()) {
+            if (id !in known) continue
+            val suffix = if (id == "default") "" else ".$id"
+            val o = root.getJSONObject(id)
+            val favs = o.optJSONArray("favorites")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()
+            val current = sp.getStringSet("favorites$suffix", emptySet())?.toSet() ?: emptySet()
+            val savedList = o.optJSONArray("watchlist")
+            val edit = sp.edit()
+            if (favs.isNotEmpty()) { edit.putStringSet("favorites$suffix", current + favs); restored = true }
+            if (savedList != null && savedList.length() > 0 && (sp.getString("watchlist$suffix", "[]") ?: "[]") == "[]") {
+                edit.putString("watchlist$suffix", savedList.toString()); restored = true
+            }
+            edit.apply()
+        }
+        if (restored) loadProfileData()
+        return restored
     }
 
     // ---------- Plusieurs abonnements ----------
