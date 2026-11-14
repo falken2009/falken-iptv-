@@ -525,6 +525,7 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
             ConnectionCheckPanel()
             if (BuildConfig.TMDB_ALLOWED) TmdbSettings()
             SubscriptionsChooser(onSwitch)
+            SyncSettings()
             ThemeChooser()
             ParentalSettings(parental)
             ButtonTile("Changer de profil", primary = false, modifier = Modifier.fillMaxWidth()) { onSwitchProfile() }
@@ -537,6 +538,32 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
         }
         ParentalPinOverlay(parental)
     }
+}
+
+/// Mot de passe de synchronisation : même abonnement sur la Fire TV et l'iPhone
+@Composable
+private fun SyncSettings() {
+    var pass by remember { mutableStateOf(Sync.password) }
+    val scope = rememberCoroutineScope()
+    Text("Synchronisation Fire TV ↔ iPhone", fontSize = 14.sp)
+    OutlinedTextField(
+        keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
+        value = pass,
+        onValueChange = { pass = it },
+        singleLine = true,
+        label = { Text("Mot de passe de synchronisation (le même sur les deux)") },
+        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = KingRed, cursorColor = KingRed),
+        modifier = Modifier.okOpensKeyboard().fillMaxWidth()
+    )
+    ButtonTile("🔄  Enregistrer et synchroniser", Modifier.fillMaxWidth()) {
+        Sync.password = pass
+        Sync.status = "Synchronisation…"
+        scope.launch { Sync.status = Sync.syncNow() }
+    }
+    Text(
+        Sync.status.ifBlank { "Choisis un mot de passe long, identique sur la Fire TV et l'iPhone. Tes abonnements sont chiffrés avant l'envoi : personne ne peut les lire." },
+        color = Muted, fontSize = 12.sp
+    )
 }
 
 /// Clé TMDB : sagas détectées sur Internet et jaquettes manquantes

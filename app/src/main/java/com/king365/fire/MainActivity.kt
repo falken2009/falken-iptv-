@@ -26,6 +26,8 @@ class MainActivity : ComponentActivity() {
         Prefs.init(this)
         Lang.init(this)
         Sauvegarde.restoreIfEmpty()
+        Sync.init(this)
+        Sync.syncAsync()
         // Après une mise à jour, remet l'icône du thème en place : sans ça l'appli pouvait
         // disparaître de l'écran d'accueil du Fire Stick
         AppIcon.apply(this, Prefs.theme)

@@ -355,13 +355,25 @@ object Prefs {
         }
     }.getOrDefault(emptyList())
 
-    private fun saveSubscriptions() {
+    private fun saveSubscriptions(push: Boolean = true) {
         val a = JSONArray()
         subscriptions.forEach {
             a.put(JSONObject().put("id", it.id).put("name", it.name).put("mode", it.mode).put("server", it.server)
                 .put("user", it.username).put("pass", it.password).put("m3u", it.m3uUrl))
         }
         sp.edit().putString("subscriptions", a.toString()).apply()
+        if (push) Sync.syncAsync()
+    }
+
+    /// Ajoute les abonnements reçus de la synchronisation qui n'existent pas encore ici ; vrai s'il y en a eu
+    fun mergeSubscriptions(received: List<Subscription>): Boolean {
+        val fresh = received.filter { r ->
+            subscriptions.none { it.mode == r.mode && (if (r.mode == "m3u") it.m3uUrl == r.m3uUrl else it.server == r.server && it.username == r.username) }
+        }.map { it.copy(id = java.util.UUID.randomUUID().toString()) }
+        if (fresh.isEmpty()) return false
+        subscriptions = subscriptions + fresh
+        saveSubscriptions(push = false)
+        return true
     }
 
     fun isCurrent(sub: Subscription) = sub.mode == mode &&
