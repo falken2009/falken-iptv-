@@ -740,7 +740,7 @@ object Catalog {
         "Star Wars" to listOf("star wars", "rogue one", "mandalorian"),
         "Harry Potter" to listOf("harry potter", "fantastic beasts", "animaux fantastiques"),
         "Le Seigneur des anneaux" to listOf("seigneur des anneaux", "lord of the rings", "le hobbit", "the hobbit"),
-        "Fast & Furious" to listOf("fast furious", "fast and furious", "furious 7"),
+        "Fast & Furious" to listOf("fast furious", "fast and furious", "fast and the furious", "furious 7", "tokyo drift", "2 fast 2 furious"),
         "James Bond" to listOf("james bond", "007"),
         "Mission Impossible" to listOf("mission impossible"),
         "Les 4 Fantastiques" to listOf("fantastic four", "4 fantastiques", "quatre fantastiques", "fantastic 4"),
@@ -760,36 +760,58 @@ object Catalog {
             .minByOrNull { it.first }?.second
     }
 
-    private const val MCU = "Marvel (MCU)"
-
-    /// Films Marvel dans l'ordre de sortie, qui est aussi l'ordre conseillé pour les regarder.
-    /// Le terme le plus long gagne : « iron man 2 » l'emporte sur « iron man ».
-    private val mcuOrder = listOf(
-        listOf("iron man"), listOf("incredible hulk", "incroyable hulk"), listOf("iron man 2"), listOf("thor"),
-        listOf("captain america first avenger", "captain america the first avenger", "captain america first"),
-        listOf("avengers", "the avengers"), listOf("iron man 3"),
-        listOf("thor the dark world", "thor le monde des tenebres"),
-        listOf("captain america the winter soldier", "captain america winter soldier", "captain america le soldat de l hiver"),
-        listOf("guardians of the galaxy", "les gardiens de la galaxie"),
-        listOf("avengers age of ultron", "avengers l ere d ultron"),
-        listOf("ant man", "ant man 1"),
-        listOf("captain america civil war"), listOf("doctor strange"),
-        listOf("guardians of the galaxy vol 2", "les gardiens de la galaxie vol 2", "gardiens de la galaxie 2"),
-        listOf("thor ragnarok"), listOf("black panther"), listOf("avengers infinity war"),
-        listOf("ant man and the wasp", "ant man et la guepe"), listOf("captain marvel"), listOf("avengers endgame"),
-        listOf("black widow"), listOf("shang chi"), listOf("eternals", "les eternels"),
-        listOf("doctor strange in the multiverse of madness", "doctor strange multiverse"),
-        listOf("thor love and thunder"), listOf("black panther wakanda forever"),
-        listOf("ant man and the wasp quantumania", "ant man quantumania"),
-        listOf("guardians of the galaxy vol 3", "les gardiens de la galaxie vol 3", "gardiens de la galaxie 3"),
-        listOf("the marvels")
+    /// Ordre de l'histoire (et non de sortie) des grandes franchises. Le terme le plus long gagne :
+    /// « iron man 2 » l'emporte sur « iron man ». Les autres sagas restent dans l'ordre de sortie.
+    private val storyOrder: Map<String, List<List<String>>> = mapOf(
+        "Marvel (MCU)" to listOf(
+            listOf("captain america first avenger", "captain america the first avenger", "captain america le premier vengeur"),
+            listOf("captain marvel"), listOf("iron man"), listOf("iron man 2"),
+            listOf("incredible hulk", "incroyable hulk"), listOf("thor"), listOf("avengers", "the avengers"),
+            listOf("thor the dark world", "thor le monde des tenebres"), listOf("iron man 3"),
+            listOf("captain america the winter soldier", "captain america winter soldier", "captain america le soldat de l hiver"),
+            listOf("guardians of the galaxy", "les gardiens de la galaxie"),
+            listOf("guardians of the galaxy vol 2", "les gardiens de la galaxie vol 2", "gardiens de la galaxie 2"),
+            listOf("avengers age of ultron", "avengers l ere d ultron"), listOf("ant man", "ant man 1"),
+            listOf("captain america civil war"), listOf("black widow"), listOf("black panther"), listOf("doctor strange"),
+            listOf("thor ragnarok"), listOf("ant man and the wasp", "ant man et la guepe"),
+            listOf("avengers infinity war"), listOf("avengers endgame"), listOf("shang chi"),
+            listOf("eternals", "les eternels"),
+            listOf("doctor strange in the multiverse of madness", "doctor strange multiverse"),
+            listOf("black panther wakanda forever"), listOf("thor love and thunder"),
+            listOf("ant man and the wasp quantumania", "ant man quantumania"),
+            listOf("guardians of the galaxy vol 3", "les gardiens de la galaxie vol 3", "gardiens de la galaxie 3"),
+            listOf("the marvels")
+        ),
+        "Star Wars" to listOf(
+            listOf("menace fantome", "phantom menace"), listOf("attaque des clones", "attack of the clones"),
+            listOf("clone wars"), listOf("revanche des sith", "revenge of the sith"), listOf("solo"),
+            listOf("rogue one"), listOf("un nouvel espoir", "a new hope"),
+            listOf("l empire contre attaque", "empire strikes back"), listOf("retour du jedi", "return of the jedi"),
+            listOf("reveil de la force", "force awakens"), listOf("derniers jedi", "last jedi"),
+            listOf("ascension de skywalker", "rise of skywalker")
+        ),
+        "Le Seigneur des anneaux" to listOf(
+            listOf("un voyage inattendu", "unexpected journey"), listOf("desolation de smaug", "desolation of smaug"),
+            listOf("bataille des cinq armees", "battle of the five armies"),
+            listOf("communaute de l anneau", "fellowship of the ring"), listOf("les deux tours", "the two towers"),
+            listOf("retour du roi", "return of the king")
+        ),
+        "Fast & Furious" to listOf(
+            listOf("the fast and the furious", "fast and furious 1"), listOf("2 fast 2 furious", "fast 2 furious"),
+            listOf("fast furious", "fast and furious"), listOf("fast five", "fast furious 5", "fast and furious 5"),
+            listOf("fast furious 6", "fast and furious 6", "furious 6"),
+            listOf("the fast and the furious tokyo drift", "tokyo drift"),
+            listOf("furious 7", "fast furious 7"), listOf("fate of the furious", "furious 8", "fast furious 8"),
+            listOf("f9", "fast 9"), listOf("fast x")
+        )
     )
 
-    private fun mcuRank(name: String): Int? {
-        val t = digits(words(name).trim()).let { " $it " }
+    private fun storyRank(franchise: String, name: String): Int? {
+        val order = storyOrder[franchise] ?: return null
+        val t = " " + digits(words(name).trim()) + " "
         var best: Int? = null
         var bestLen = 0
-        mcuOrder.forEachIndexed { rank, terms ->
+        order.forEachIndexed { rank, terms ->
             terms.forEach { term ->
                 val w = " " + digits(words(term).trim()) + " "
                 if (t.contains(w) && w.length > bestLen) { best = rank; bestLen = w.length }
@@ -854,8 +876,9 @@ object Catalog {
             if (members.size >= 2) {
                 if (emitted.add(k.first)) {
                     val ordered = members.sortedWith { a, b ->
-                        val ra = if (k.first == "fr:$MCU") mcuRank(a.name) else null
-                        val rb = if (k.first == "fr:$MCU") mcuRank(b.name) else null
+                        val fr = k.first.removePrefix("fr:")
+                        val ra = if (k.first.startsWith("fr:")) storyRank(fr, a.name) else null
+                        val rb = if (k.first.startsWith("fr:")) storyRank(fr, b.name) else null
                         if (ra != null && rb != null && ra != rb) return@sortedWith ra - rb
                         // Ordre de sortie : date exacte de TMDB, sinon l'année du fournisseur
                         val da = Tmdb.releaseDate(a) ?: a.year?.let { "$it-01-01" }
