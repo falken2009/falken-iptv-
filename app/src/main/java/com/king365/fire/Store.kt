@@ -732,7 +732,11 @@ object Catalog {
         "Superman" to listOf("superman", "man of steel"),
         "Spider-Man" to listOf("spider man", "spiderman", "amazing spider"),
         "X-Men" to listOf("x men", "wolverine", "deadpool"),
-        "Avengers" to listOf("avengers", "iron man", "captain america", "thor", "hulk", "black widow", "guardians of the galaxy", "les gardiens de la galaxie"),
+        "Marvel (MCU)" to listOf(
+            "avengers", "iron man", "captain america", "thor", "hulk", "black widow", "guardians of the galaxy",
+            "gardiens de la galaxie", "ant man", "doctor strange", "black panther", "captain marvel", "eternals",
+            "les eternels", "shang chi", "the marvels"
+        ),
         "Star Wars" to listOf("star wars", "rogue one", "mandalorian"),
         "Harry Potter" to listOf("harry potter", "fantastic beasts", "animaux fantastiques"),
         "Le Seigneur des anneaux" to listOf("seigneur des anneaux", "lord of the rings", "le hobbit", "the hobbit"),
@@ -754,6 +758,44 @@ object Catalog {
                 if (at == null) null else at to name
             }
             .minByOrNull { it.first }?.second
+    }
+
+    private const val MCU = "Marvel (MCU)"
+
+    /// Films Marvel dans l'ordre de sortie, qui est aussi l'ordre conseillé pour les regarder.
+    /// Le terme le plus long gagne : « iron man 2 » l'emporte sur « iron man ».
+    private val mcuOrder = listOf(
+        listOf("iron man"), listOf("incredible hulk", "incroyable hulk"), listOf("iron man 2"), listOf("thor"),
+        listOf("captain america first avenger", "captain america the first avenger", "captain america first"),
+        listOf("avengers", "the avengers"), listOf("iron man 3"),
+        listOf("thor the dark world", "thor le monde des tenebres"),
+        listOf("captain america the winter soldier", "captain america winter soldier", "captain america le soldat de l hiver"),
+        listOf("guardians of the galaxy", "les gardiens de la galaxie"),
+        listOf("avengers age of ultron", "avengers l ere d ultron"),
+        listOf("ant man", "ant man 1"),
+        listOf("captain america civil war"), listOf("doctor strange"),
+        listOf("guardians of the galaxy vol 2", "les gardiens de la galaxie vol 2", "gardiens de la galaxie 2"),
+        listOf("thor ragnarok"), listOf("black panther"), listOf("avengers infinity war"),
+        listOf("ant man and the wasp", "ant man et la guepe"), listOf("captain marvel"), listOf("avengers endgame"),
+        listOf("black widow"), listOf("shang chi"), listOf("eternals", "les eternels"),
+        listOf("doctor strange in the multiverse of madness", "doctor strange multiverse"),
+        listOf("thor love and thunder"), listOf("black panther wakanda forever"),
+        listOf("ant man and the wasp quantumania", "ant man quantumania"),
+        listOf("guardians of the galaxy vol 3", "les gardiens de la galaxie vol 3", "gardiens de la galaxie 3"),
+        listOf("the marvels")
+    )
+
+    private fun mcuRank(name: String): Int? {
+        val t = digits(words(name).trim()).let { " $it " }
+        var best: Int? = null
+        var bestLen = 0
+        mcuOrder.forEachIndexed { rank, terms ->
+            terms.forEach { term ->
+                val w = " " + digits(words(term).trim()) + " "
+                if (t.contains(w) && w.length > bestLen) { best = rank; bestLen = w.length }
+            }
+        }
+        return best
     }
 
     fun groupSagas(list: List<Movie>): List<MovieEntry> {
@@ -812,6 +854,9 @@ object Catalog {
             if (members.size >= 2) {
                 if (emitted.add(k.first)) {
                     val ordered = members.sortedWith { a, b ->
+                        val ra = if (k.first == "fr:$MCU") mcuRank(a.name) else null
+                        val rb = if (k.first == "fr:$MCU") mcuRank(b.name) else null
+                        if (ra != null && rb != null && ra != rb) return@sortedWith ra - rb
                         val ya = a.year
                         val yb = b.year
                         if (ya != null && yb != null && ya != yb) ya - yb
