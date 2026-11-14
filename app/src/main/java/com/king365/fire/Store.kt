@@ -20,7 +20,7 @@ object Prefs {
     fun init(context: Context) {
         appContext = context.applicationContext
         sp = context.getSharedPreferences("king365", Context.MODE_PRIVATE)
-        sort = CatalogSort.entries.firstOrNull { it.name == sp.getString("sort", null) } ?: CatalogSort.AZ
+        sort = CatalogSort.entries.firstOrNull { it.name == sp.getString("sort", null) } ?: CatalogSort.RECENT
         groupSagas = sp.getBoolean("groupSagas", true)
         userAgentName = sp.getString("userAgent", "Falken IPTV")?.takeIf { it in Http.agents } ?: "Falken IPTV"
         theme = KingThemeChoice.entries.firstOrNull { it.name == sp.getString("theme", null) } ?: KingThemeChoice.RED
@@ -157,7 +157,7 @@ object Prefs {
 
     // ---------- Tri et regroupement des films ----------
 
-    var sort by mutableStateOf(CatalogSort.AZ)
+    var sort by mutableStateOf(CatalogSort.RECENT)
         private set
 
     fun updateSort(value: CatalogSort) {
@@ -697,14 +697,39 @@ object Catalog {
         return Base(s, fold(s), pair)
     }
 
+    /// Premiers mots trop courants pour dire que deux films appartiennent à la même saga
+    private val genericLeads = setOf(
+        "mission", "operation", "histoire", "histoires", "detective", "legende", "legendes", "princesse",
+        "premier", "premiere", "dernier", "derniere", "derniers", "nouveau", "nouvelle", "voyage",
+        "secret", "secrets", "journee", "sorciere", "maison", "famille", "ensemble", "tellement",
+        "retour", "revenge", "american", "christmas", "noel", "mariage", "vacances", "professeur"
+    )
+
+    /// Premier mot du titre quand il est assez rare pour désigner un univers :
+    /// « Jurassic Park » et « Jurassic World », « Transformers » et « Transformers : Age of Extinction »
+    private fun leadWord(display: String): Pair<String, String>? {
+        val word = display.split(" ").firstOrNull { it.isNotEmpty() } ?: return null
+        val folded = fold(word).filter { it.isLetter() }
+        if (folded.length < 7 || folded in stopwords || folded in genericLeads) return null
+        return folded to word.replaceFirstChar { it.uppercase() }
+    }
+
     fun groupSagas(list: List<Movie>): List<MovieEntry> {
         // Un même film en plusieurs qualités : on ne garde que la meilleure copie
         val movies = Duplicates.keepBest(list, { it.name }, { it.year })
         val bases = movies.map { base(it.name) }
         val pairCount = bases.mapNotNull { it.pair?.second }.groupingBy { it }.eachCount()
-        val heuristic = bases.map { b ->
+        val leads = bases.map { leadWord(it.display) }
+        val leadCount = leads.filterNotNull().groupingBy { it.first }.eachCount()
+        val heuristic = bases.mapIndexed { i, b ->
             val p = b.pair
-            if (p != null && (pairCount[p.second] ?: 0) >= 2) p.second to p.first else b.key to b.display
+            val lead = leads[i]
+            when {
+                // Deux titres ou plus qui partagent un premier mot rare : même univers
+                lead != null && (leadCount[lead.first] ?: 0) >= 2 -> lead
+                p != null && (pairCount[p.second] ?: 0) >= 2 -> p.second to p.first
+                else -> b.key to b.display
+            }
         }
         // Saga trouvée sur Internet (TMDB) en priorité ; un film non trouvé rejoint quand même
         // la saga TMDB qui porte son nom (« Deadpool » → « Deadpool »)
@@ -745,6 +770,13 @@ object Catalog {
             }
         }
         return entries
+    }
+
+    /// Titre contenant tous les mots tapés (sans accents, sans majuscules, sans « FR - » devant)
+    fun matchesQuery(name: String, cleaned: String): Boolean {
+        if (cleaned.isEmpty()) return true
+        val title = sortKey(name)
+        return cleaned.split(" ").filter { it.isNotEmpty() }.all { title.contains(it) }
     }
 
     // Filtres des films

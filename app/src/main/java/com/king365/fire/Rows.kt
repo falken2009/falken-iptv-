@@ -62,6 +62,14 @@ private fun <T> CatalogRowsScreen(
     var focused by remember { mutableStateOf<RowItem<T>?>(null) }
     // La première rangée chargée prend le focus (sans attendre « Derniers ajouts », plus long à charger)
     var focusTaken by remember { mutableStateOf(false) }
+    // Dernière affiche sélectionnée : retrouvée au retour d'un film (survit au changement d'écran)
+    var lastRow by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    var lastItem by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    val startRow = remember { lastRow }
+    val startItem = remember { lastItem }
+    // Si la rangée retrouvée tarde trop à charger, la première rangée prête prend le focus
+    var fallback by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(4000); fallback = true }
     // Retour : remonte à la première rangée avant de quitter l'écran
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val topFocus = remember { FocusRequester() }
@@ -72,6 +80,9 @@ private fun <T> CatalogRowsScreen(
         focusTop = topFocus
     )
 
+    LaunchedEffect(categories.isNotEmpty()) {
+        if (categories.isNotEmpty() && startRow > 0) runCatching { listState.scrollToItem(startRow) }
+    }
     LaunchedEffect(Unit) {
         if (categories.isEmpty()) {
             runCatching { loadCategories() }
@@ -109,9 +120,18 @@ private fun <T> CatalogRowsScreen(
                         val category = all[index]
                         CatalogRow(
                             // La rangée sélectionnée remonte toute seule en haut de l'écran (comme Netflix)
-                            onRowFocused = { rowScope.launch { listState.animateScrollToItem(index) } },
+                            onRowFocused = {
+                                lastRow = index
+                                rowScope.launch { listState.animateScrollToItem(index) }
+                            },
                             category = category,
-                            claimFocus = { if (focusTaken) false else { focusTaken = true; true } },
+                            restoreItem = if (index == startRow) startItem else 0,
+                            fallback = fallback,
+                            claimFocus = {
+                                if (focusTaken || !(startRow == 0 || index == startRow || fallback)) false
+                                else { focusTaken = true; true }
+                            },
+                            onItemFocused = { lastItem = it },
                             topFocus = if (category == Catalog.RECENT) topFocus else null,
                             loadRow = loadRow,
                             describe = describe,
@@ -132,6 +152,9 @@ private fun <T> CatalogRowsScreen(
 private fun <T> CatalogRow(
     category: Category,
     claimFocus: () -> Boolean,
+    restoreItem: Int,
+    fallback: Boolean,
+    onItemFocused: (Int) -> Unit,
     topFocus: FocusRequester?,
     onRowFocused: () -> Unit,
     loadRow: suspend (Category) -> List<T>,
@@ -146,6 +169,8 @@ private fun <T> CatalogRow(
     var failed by remember(category.id) { mutableStateOf(false) }
     val ownFocus = remember { FocusRequester() }
     val firstFocus = topFocus ?: ownFocus
+    val restoreFocus = remember { FocusRequester() }
+    val rowState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Chaque rangée se charge quand elle apparaît à l'écran (et reste en mémoire ensuite)
     LaunchedEffect(category.id, locked) {
@@ -154,12 +179,16 @@ private fun <T> CatalogRow(
             .onSuccess { list -> rowItems = list.map(describe) }
             .onFailure { failed = true }
     }
-    LaunchedEffect(rowItems != null) {
+    LaunchedEffect(rowItems != null, fallback) {
         if (rowItems?.isNotEmpty() == true && claimFocus()) {
+            val target = if (restoreItem > 0 && restoreItem < (rowItems?.size ?: 0)) {
+                runCatching { rowState.scrollToItem(restoreItem) }
+                restoreFocus
+            } else firstFocus
             // L'affiche doit d'abord être affichée : quelques essais rapprochés
             repeat(10) {
                 kotlinx.coroutines.delay(80)
-                if (runCatching { firstFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                if (runCatching { target.requestFocus() }.isSuccess) return@LaunchedEffect
             }
         }
     }
@@ -187,6 +216,7 @@ private fun <T> CatalogRow(
             }
             rowItems!!.isEmpty() -> Text("Aucun titre", color = Muted, fontSize = 13.sp)
             else -> LazyRow(
+                state = rowState,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(start = 4.dp, end = 28.dp, top = 6.dp, bottom = 6.dp)
             ) {
@@ -195,9 +225,13 @@ private fun <T> CatalogRow(
                     val entry = list[index]
                     Box(
                         Modifier.width(PosterWidth)
-                            .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
+                            .then(
+                                if (index == 0) Modifier.focusRequester(firstFocus)
+                                else if (index == restoreItem) Modifier.focusRequester(restoreFocus)
+                                else Modifier
+                            )
                     ) {
-                        PosterCard(entry.name, entry.image, onFocus = { onFocus(entry) }) { onItem(entry.value) }
+                        PosterCard(entry.name, entry.image, onFocus = { onFocus(entry); onItemFocused(index) }) { onItem(entry.value) }
                     }
                 }
                 item {
@@ -243,7 +277,8 @@ fun MovieRowsScreen(nav: Navigator) = if (Session.api == null) XtreamOnly("les f
         }
         // Une seule copie par film (la meilleure qualité)
         val kept = if (Prefs.groupSagas) Duplicates.keepBest(list, { it.name }, { it.year }) else list
-        var row = kept.take(ROW_SIZE)
+        // Les derniers ajouts d'abord, dans chaque catégorie
+        var row = Catalog.sort(kept, CatalogSort.RECENT, { it.name }, { it.rating }, { it.added }).take(ROW_SIZE)
         // Jaquettes cassées : cherchées en arrière-plan sur Internet (TMDB), la rangée s'affiche tout de suite
         Tmdb.prefetchMovies(row)
         // Jaquettes absentes : cherchées avant l'affichage
@@ -277,7 +312,7 @@ fun SeriesRowsScreen(nav: Navigator) = if (Session.api == null) XtreamOnly("les 
             Session.seriesByCategory[category.id] ?: api.series(category.id).also { Session.seriesByCategory[category.id] = it }
         }
         val kept = if (Prefs.groupSagas) Duplicates.keepBest(list, { it.name }) else list
-        var row = kept.take(ROW_SIZE)
+        var row = Catalog.sort(kept, CatalogSort.RECENT, { it.name }, { it.rating }, { it.added }).take(ROW_SIZE)
         Tmdb.prefetchSeries(row)
         val missing = row.filter { it.cover.isNullOrBlank() }
         Tmdb.enrichSeries(missing) { found ->

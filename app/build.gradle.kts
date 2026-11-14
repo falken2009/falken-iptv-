@@ -57,17 +57,30 @@ android {
         jvmTarget = "17"
     }
 
-    // perso = ta version (GitHub, tout débloqué) · store = version Amazon Appstore avec Premium
+    // perso = ta version (GitHub, tout débloqué) · licence = version vendue par code d'activation
+    // · store = version Amazon Appstore avec Premium
     flavorDimensions += "distribution"
     productFlavors {
         create("perso") {
             dimension = "distribution"
             buildConfigField("boolean", "PREMIUM", "false")
             buildConfigField("boolean", "TMDB_ALLOWED", "true")
+            buildConfigField("String", "LICENCE_SECRET", "\"\"")
+        }
+        create("licence") {
+            dimension = "distribution"
+            buildConfigField("boolean", "PREMIUM", "true")
+            buildConfigField("boolean", "TMDB_ALLOWED", "true")
+            // Phrase secrète qui sert à fabriquer les codes d'activation.
+            // Mets la même dans outils/generer-code.py, et ne la publie jamais :
+            // sur GitHub elle vient du secret FALKEN_LICENCE_SECRET (Settings → Secrets).
+            val secret = System.getenv("FALKEN_LICENCE_SECRET") ?: "change-moi-avant-de-vendre"
+            buildConfigField("String", "LICENCE_SECRET", "\"$secret\"")
         }
         create("store") {
             dimension = "distribution"
             buildConfigField("boolean", "PREMIUM", "true")
+            buildConfigField("String", "LICENCE_SECRET", "\"\"")
             // La clé TMDB gratuite est réservée à l'usage non commercial
             buildConfigField("boolean", "TMDB_ALLOWED", "false")
         }

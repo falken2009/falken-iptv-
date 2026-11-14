@@ -316,12 +316,12 @@ fun HomeScreen(nav: Navigator) {
             Spacer(Modifier.weight(1f))
 
             Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
-                BigTile("TV EN DIRECT", big, Modifier.focusRequester(first), onClick = { nav.go(Screen.Live) }) {
+                BigTile(Lang.t("TV EN DIRECT"), big, Modifier.focusRequester(first), onClick = { nav.go(Screen.Live) }) {
                     LiveTvIcon(big * 0.55f)
                 }
-                BigTile("GUIDE", big, onClick = { nav.go(Screen.Guide) }) { GuideIcon(big * 0.55f) }
-                BigTile("FILMS", big, onClick = { nav.go(Screen.Movies) }) { VodIcon(big * 0.55f) }
-                BigTile("SÉRIES", big, onClick = { nav.go(Screen.Series) }) {
+                BigTile(Lang.t("GUIDE"), big, onClick = { nav.go(Screen.Guide) }) { GuideIcon(big * 0.55f) }
+                BigTile(Lang.t("FILMS"), big, onClick = { nav.go(Screen.Movies) }) { VodIcon(big * 0.55f) }
+                BigTile(Lang.t("SÉRIES"), big, onClick = { nav.go(Screen.Series) }) {
                     Icon(Icons.Outlined.VideoLibrary, contentDescription = null, modifier = Modifier.height(big * 0.55f).width(big * 0.55f))
                 }
             }
@@ -329,13 +329,13 @@ fun HomeScreen(nav: Navigator) {
             Spacer(Modifier.height(18.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                SmallTile("FAVORIS", Icons.Outlined.StarOutline, small) { nav.go(Screen.Favorites) }
-                SmallTile("MA LISTE", Icons.Outlined.BookmarkBorder, small) { nav.go(Screen.Watchlist) }
-                SmallTile("MULTI", Icons.Outlined.GridView, small) { nav.go(Screen.Multi) }
-                SmallTile("REPLAY", Icons.Outlined.History, small) { nav.go(Screen.Replay) }
-                SmallTile("RECHERCHE", Icons.Outlined.Search, small) { nav.go(Screen.Search) }
-                SmallTile("COMPTE", Icons.Outlined.Person, small) { nav.go(Screen.Account) }
-                SmallTile("RÉGLAGES", Icons.Outlined.Settings, small) { nav.go(Screen.Settings) }
+                SmallTile(Lang.t("FAVORIS"), Icons.Outlined.StarOutline, small) { nav.go(Screen.Favorites) }
+                SmallTile(Lang.t("MA LISTE"), Icons.Outlined.BookmarkBorder, small) { nav.go(Screen.Watchlist) }
+                SmallTile(Lang.t("MULTI"), Icons.Outlined.GridView, small) { nav.go(Screen.Multi) }
+                SmallTile(Lang.t("REPLAY"), Icons.Outlined.History, small) { nav.go(Screen.Replay) }
+                SmallTile(Lang.t("RECHERCHE"), Icons.Outlined.Search, small) { nav.go(Screen.Search) }
+                SmallTile(Lang.t("COMPTE"), Icons.Outlined.Person, small) { nav.go(Screen.Account) }
+                SmallTile(Lang.t("RÉGLAGES"), Icons.Outlined.Settings, small) { nav.go(Screen.Settings) }
             }
 
             if (filmsEnCours.isNotEmpty()) {
@@ -425,7 +425,7 @@ private fun InfoLine(label: String, value: String) {
 // ---------- Réglages ----------
 
 @Composable
-fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit, onSwitchProfile: () -> Unit = {}) {
+fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit, onSwitchProfile: () -> Unit = {}, onLanguage: () -> Unit = {}) {
     var cleared by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     val parental = remember { ParentalFlow() }
@@ -438,14 +438,15 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
                 .padding(vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ScreenTitle("Réglages")
+            ScreenTitle(Lang.t("Réglages"))
             // Numéro de version : permet de vérifier que la dernière compilation est bien installée
             val context = LocalContext.current
             val version = remember {
                 runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
             }
             InfoLine("Version de l'appli", version)
-            ButtonTile("🔄  Rechercher une mise à jour", Modifier.fillMaxWidth(), primary = false) {
+            ButtonTile("🌐  " + Lang.t("Langue de l'interface"), Modifier.fillMaxWidth(), primary = false) { onLanguage() }
+            ButtonTile(Lang.t("🔄  Rechercher une mise à jour"), Modifier.fillMaxWidth(), primary = false) {
                 Updater.lastResult = "Recherche…"
                 Updater.requests++
             }

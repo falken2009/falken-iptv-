@@ -577,6 +577,19 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
     /// Replay : saute 2 minutes (bas = en avant pour passer la pub, haut = retour en arrière)
     fun skipBy(delta: Long) {
         val engine = vlcHolder[0]
+        val info = current.replayInfo
+        if (info != null) {
+            // Le flux du replay n'est pas « sautable » : le lecteur devait tout relire jusqu'à la
+            // nouvelle position (très long). On redemande plutôt le programme à partir de la bonne heure.
+            val position = if (useVlc && engine != null) engine.player.time else player.currentPosition
+            val total = info.totalMinutes * 60_000L
+            val offset = (info.offsetMs + position.coerceAtLeast(0) + delta).coerceIn(0L, (total - 60_000L).coerceAtLeast(0L))
+            val moved = info.copy(offsetMs = offset)
+            current = current.copy(url = Session.api?.replayUrlFrom(moved) ?: current.url, replayInfo = moved)
+            val minutes = offset / 60_000
+            show((if (delta > 0) "⏭ +2 min" else "⏮ −2 min") + " · à ${minutes} min du début")
+            return
+        }
         if (useVlc && engine != null) {
             engine.player.time = (engine.player.time + delta).coerceAtLeast(0)
         } else {
@@ -601,8 +614,8 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
     }
 
     // Replay : rappel des touches pour passer les pubs
-    LaunchedEffect(current) {
-        if (current.replay) {
+    LaunchedEffect(current.replayInfo?.channelId, current.title) {
+        if (current.replay && (current.replayInfo?.offsetMs ?: 0L) == 0L) {
             delay(1_500)
             show("Bas : +2 min (passer la pub) · Haut : −2 min")
         }

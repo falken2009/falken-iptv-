@@ -16,6 +16,7 @@ import java.net.URLEncoder
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 import java.text.SimpleDateFormat
+import java.util.TimeZone
 import java.util.Date
 import java.util.Locale
 
@@ -127,7 +128,20 @@ data class PlayItem(
     val streamId: String? = null,
     val logo: String? = null,
     /// Programme en replay : haut/bas sautent 2 minutes (pour passer les pubs)
-    val replay: Boolean = false
+    val replay: Boolean = false,
+    /// De quoi relancer le replay quelques minutes plus loin (voir Api.replayUrlFrom)
+    val replayInfo: ReplayInfo? = null
+)
+
+/// Position d'un replay dans le programme : le serveur ne sait pas « sauter » dans le flux,
+/// mais il sait le redémarrer à n'importe quelle heure, ce qui est quasi instantané.
+data class ReplayInfo(
+    val channelId: String,
+    /// Début du programme, en millisecondes, lu comme une heure sans fuseau (celle du serveur)
+    val baseStartNaive: Long,
+    val totalMinutes: Int,
+    /// Ce qui a déjà été sauté depuis le début du programme
+    val offsetMs: Long = 0L
 )
 
 // ---------- Lecture tolérante du JSON Xtream ----------
@@ -373,6 +387,25 @@ class XtreamApi(server: String, val username: String, val password: String) {
         }
         return "$host/timeshift/${enc(username)}/${enc(password)}/$minutes/$start/${channel.id}.ts"
     }
+
+    /// Infos pour sauter dans un replay sans relire tout le flux
+    fun replayInfo(channel: LiveChannel, p: Programme): ReplayInfo? {
+        val naive = parseServerTime(p.serverStart) ?: return null
+        return ReplayInfo(channel.id, naive, maxOf(((p.stop - p.start) / 60_000).toInt(), 1))
+    }
+
+    /// Le même programme, relancé à `info.offsetMs` après son début
+    fun replayUrlFrom(info: ReplayInfo): String {
+        val startMs = info.baseStartNaive + info.offsetMs
+        val minutes = maxOf(info.totalMinutes - (info.offsetMs / 60_000).toInt(), 1)
+        val fmt = SimpleDateFormat("yyyy-MM-dd:HH-mm", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+        return "$host/timeshift/${enc(username)}/${enc(password)}/$minutes/${fmt.format(Date(startMs))}/${info.channelId}.ts"
+    }
+
+    private fun parseServerTime(text: String): Long? = runCatching {
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .parse(text.take(19))?.time
+    }.getOrNull()
 
     // Films
 

@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Prefs.init(this)
+        Lang.init(this)
         // Après une mise à jour, remet l'icône du thème en place : sans ça l'appli pouvait
         // disparaître de l'écran d'accueil du Fire Stick
         AppIcon.apply(this, Prefs.theme)
@@ -74,6 +75,7 @@ sealed interface Screen {
     data object Search : Screen
     data object Account : Screen
     data object Settings : Screen
+    data object Language : Screen
     data object Profiles : Screen
     data object Watchlist : Screen
     data object Multi : Screen
@@ -129,7 +131,10 @@ fun AppRoot() {
     val saveable = rememberSaveableStateHolder()
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (!loggedIn) {
+        if (!Lang.chosen) {
+            // Première ouverture : choix de la langue avant tout le reste
+            LanguageScreen(onDone = { })
+        } else if (!loggedIn) {
             LoginScreen(onLoggedIn = {
                 nav.home()
                 loggedIn = true
@@ -166,6 +171,7 @@ fun AppRoot() {
                     Screen.Series -> if (Premium.active) SeriesRowsScreen(nav) else SeriesCategoriesScreen(nav)
                     Screen.Search -> SearchScreen(nav)
                     Screen.Account -> AccountScreen(onBack = { nav.back() })
+                    Screen.Language -> LanguageScreen(onDone = { nav.back() })
                     Screen.Profiles -> ProfilesScreen(onDone = { nav.home() })
                     Screen.Watchlist -> WatchlistScreen(nav)
                     Screen.Multi -> MultiScreen(nav)
@@ -179,7 +185,8 @@ fun AppRoot() {
                             Session.clearCaches()
                             if (Session.restore()) nav.home() else loggedIn = false
                         },
-                        onSwitchProfile = { nav.go(Screen.Profiles) }
+                        onSwitchProfile = { nav.go(Screen.Profiles) },
+                        onLanguage = { nav.go(Screen.Language) }
                     )
                     is Screen.MovieGrid -> MovieGridScreen(nav, screen.category)
                     is Screen.Saga -> SagaScreen(nav, screen.name, screen.movies)

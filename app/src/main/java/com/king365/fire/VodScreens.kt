@@ -2,7 +2,11 @@ package com.king365.fire
 
 import androidx.compose.ui.focus.onFocusChanged
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.runtime.produceState
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -76,6 +80,8 @@ private fun CategoryScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var askPin by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
+    val memory = rememberFocusMemory(first)
+    val catState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 
     LaunchedEffect(Unit) {
         if (categories.isEmpty()) {
@@ -85,7 +91,13 @@ private fun CategoryScreen(
             loading = false
         }
     }
-    LaunchedEffect(categories.size) { if (categories.isNotEmpty()) runCatching { first.requestFocus() } }
+    // Au retour d'une catégorie, on reste sur la même ligne de la liste
+    LaunchedEffect(categories.isNotEmpty()) {
+        if (categories.isNotEmpty()) {
+            if (memory.startIndex in 1..categories.size) runCatching { catState.scrollToItem(memory.startIndex) }
+            memory.requestStart()
+        }
+    }
 
     KingBackground(dimmed = true) {
         when {
@@ -95,13 +107,14 @@ private fun CategoryScreen(
             else -> Column(Modifier.fillMaxSize().padding(24.dp)) {
                 ScreenTitle(title)
                 LazyVerticalGrid(
+                    state = catState,
                     columns = GridCells.Adaptive(260.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(4.dp)
                 ) {
-                    items(listOf(Catalog.RECENT) + categories) { c ->
-                        Box(if (c == Catalog.RECENT) Modifier.focusRequester(first) else Modifier) {
+                    itemsIndexed(listOf(Catalog.RECENT) + categories) { index, c ->
+                        Box(memory.modifier(index).onFocusChanged { if (it.hasFocus) memory.index = index }) {
                             ListRow(
                                 (if (Prefs.isProtected(c.name)) "🔒 " else "") + c.name,
                                 onMenu = if (Prefs.hasPin && (Prefs.unlocked || !Prefs.isProtected(c.name))) {
@@ -177,6 +190,31 @@ private fun SortBar(showSagas: Boolean, series: Boolean = false) {
     }
 }
 
+/// Champ de recherche à l'intérieur d'une catégorie (OK ouvre le clavier, ou dictée)
+@Composable
+private fun CategorySearchField(query: String, onChange: (String) -> Unit, requester: FocusRequester) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onChange,
+        label = { Text(Lang.t("Rechercher dans cette catégorie")) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
+        keyboardActions = KeyboardActions(onSearch = { }),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White.copy(alpha = 0.9f),
+            focusedTextColor = Color.Black,
+            unfocusedTextColor = Color.Black,
+            focusedBorderColor = KingRed,
+            unfocusedBorderColor = Color.Transparent,
+            focusedLabelColor = KingRed,
+            unfocusedLabelColor = Color.DarkGray,
+            cursorColor = KingRed
+        ),
+        modifier = Modifier.okOpensKeyboard().width(520.dp).focusRequester(requester)
+    )
+}
+
 // ---------- Films ----------
 
 @Composable
@@ -184,6 +222,10 @@ fun MovieGridScreen(nav: Navigator, category: Category) {
     var movies by remember { mutableStateOf(Session.moviesByCategory[category.id]) }
     var error by remember { mutableStateOf<String?>(null) }
     val first = remember { FocusRequester() }
+    val memory = rememberFocusMemory(first)
+    val searchField = remember { FocusRequester() }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
     // Retour : remonte en haut de la grille avant de quitter l'écran
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val gridScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -216,26 +258,52 @@ fun MovieGridScreen(nav: Navigator, category: Category) {
     val genres = remember(list) { Catalog.genres(list ?: emptyList()) }
     val isRecent = category == Catalog.RECENT
     val hidden = if (isRecent) lockedIds(Session.vodCategories) else emptySet()
-    val filteredList = remember(list, decade, minRating, genre, hidden) {
-        (list ?: emptyList()).filter { Catalog.matches(it, decade, minRating, genre) && it.categoryId !in hidden }
+    val cleaned = Catalog.cleanQuery(query)
+    val sortMode = if (isRecent) CatalogSort.RECENT else Prefs.sort
+    val groupSagas = Prefs.groupSagas
+    val tmdbVersion = Tmdb.version
+    // Filtre, tri et regroupement des sagas : hors de l'écran (thread de calcul), sinon une grande
+    // catégorie figeait la télécommande. L'ancienne liste reste affichée pendant le recalcul.
+    val computed by produceState<List<Catalog.MovieEntry>?>(
+        null, list, decade, minRating, genre, hidden, sortMode, groupSagas, tmdbVersion, cleaned
+    ) {
+        val l = list ?: return@produceState
+        value = withContext(Dispatchers.Default) {
+            val filtered = l.filter {
+                Catalog.matches(it, decade, minRating, genre) && it.categoryId !in hidden &&
+                    Catalog.matchesQuery(it.name, cleaned)
+            }
+            val ordered = Catalog.sort(filtered, sortMode, { it.name }, { it.rating }, { it.added })
+            if (groupSagas && !isRecent) Catalog.groupSagas(ordered) else ordered.map { Catalog.MovieEntry.Single(it) }
+        }
     }
-    val sorted = remember(filteredList, Prefs.sort) {
-        Catalog.sort(filteredList, if (isRecent) CatalogSort.RECENT else Prefs.sort, { it.name }, { it.rating }, { it.added })
+    val entries = computed ?: emptyList()
+    // Au retour d'un film : on retrouve la case qu'on avait quittée
+    var focusDone by remember { mutableStateOf(false) }
+    LaunchedEffect(computed != null) {
+        if (computed != null && entries.isNotEmpty() && !focusDone) {
+            focusDone = true
+            if (memory.startIndex in 1 until entries.size) runCatching { gridState.scrollToItem(memory.startIndex) }
+            memory.requestStart()
+        }
     }
-    val entries = remember(sorted, Prefs.groupSagas, Tmdb.version) {
-        if (Prefs.groupSagas && !isRecent) Catalog.groupSagas(sorted) else sorted.map { Catalog.MovieEntry.Single(it) }
-    }
-    LaunchedEffect(list != null) { if (!entries.isEmpty()) runCatching { first.requestFocus() } }
 
     BackdropBackground(backdrop) {
         when {
             error != null -> Message("Impossible de charger les films", error)
             list == null -> Loading()
             list.isEmpty() -> Message("Aucun film dans cette catégorie")
+            computed == null -> Loading()
             else -> Column(Modifier.fillMaxSize().padding(24.dp)) {
                 ScreenTitle(category.name)
                 if (!isRecent) SortBar(showSagas = true)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp)) {
+                    item {
+                        Chip(Lang.t(if (searching) "🔎 Fermer la recherche" else "🔎 Rechercher"), selected = searching) {
+                            searching = !searching
+                            if (!searching) query = ""
+                        }
+                    }
                     item {
                         Chip(
                             when (decade) { null -> "Années : toutes"; 1990 -> "Avant 2000"; else -> "Années $decade" },
@@ -258,19 +326,30 @@ fun MovieGridScreen(nav: Navigator, category: Category) {
                         }
                     }
                 }
+                if (searching) {
+                    Spacer(Modifier.height(6.dp))
+                    CategorySearchField(query, { query = it }, searchField)
+                    LaunchedEffect(Unit) { runCatching { searchField.requestFocus() } }
+                }
                 Spacer(Modifier.height(8.dp))
-                LazyVerticalGrid(
+                if (entries.isEmpty()) Message("Aucun résultat pour « $cleaned »")
+                else LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(128.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(8.dp)
                 ) {
-                    items(entries) { entry ->
+                    itemsIndexed(entries) { index, entry ->
                         Box(
-                            (if (entry == entries.first()) Modifier.focusRequester(first) else Modifier)
+                            memory.modifier(index)
                                 // La rangée sélectionnée remonte toute seule en haut de l'écran
-                                .onFocusChanged { if (it.hasFocus) gridScope.launch { gridState.animateScrollToItem(entries.indexOf(entry)) } }
+                                .onFocusChanged {
+                                    if (it.hasFocus) {
+                                        memory.index = index
+                                        gridScope.launch { gridState.animateScrollToItem(index) }
+                                    }
+                                }
                         ) {
                             when (entry) {
                                 is Catalog.MovieEntry.Single -> PosterCard(
@@ -296,12 +375,16 @@ fun MovieGridScreen(nav: Navigator, category: Category) {
 @Composable
 fun SagaScreen(nav: Navigator, name: String, movies: List<Movie>) {
     val first = remember { FocusRequester() }
+    val memory = rememberFocusMemory(first)
     // Retour : remonte en haut de la grille avant de quitter l'écran
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val gridScope = androidx.compose.runtime.rememberCoroutineScope()
     BackToTop(gridState.firstVisibleItemIndex == 0, { gridState.scrollToItem(0) }, first)
     var backdrop by remember { mutableStateOf(movies.firstOrNull()?.icon) }
-    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    LaunchedEffect(Unit) {
+        if (memory.startIndex in 1 until movies.size) runCatching { gridState.scrollToItem(memory.startIndex) }
+        memory.requestStart()
+    }
     BackdropBackground(backdrop) {
         Column(Modifier.fillMaxSize().padding(24.dp)) {
             ScreenTitle("$name · ${movies.size} films")
@@ -312,11 +395,16 @@ fun SagaScreen(nav: Navigator, name: String, movies: List<Movie>) {
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(8.dp)
             ) {
-                items(movies) { m ->
+                itemsIndexed(movies) { index, m ->
                     Box(
-                            (if (m == movies.first()) Modifier.focusRequester(first) else Modifier)
+                            memory.modifier(index)
                                 // La rangée sélectionnée remonte toute seule en haut de l'écran
-                                .onFocusChanged { if (it.hasFocus) gridScope.launch { gridState.animateScrollToItem(movies.indexOf(m)) } }
+                                .onFocusChanged {
+                                    if (it.hasFocus) {
+                                        memory.index = index
+                                        gridScope.launch { gridState.animateScrollToItem(index) }
+                                    }
+                                }
                         ) {
                         PosterCard(m.name, m.icon, onFocus = { backdrop = m.icon }) { nav.go(Screen.MovieDetail(m)) }
                     }
@@ -381,6 +469,10 @@ fun SeriesGridScreen(nav: Navigator, category: Category) {
     var loaded by remember { mutableStateOf(Session.seriesByCategory[category.id]) }
     var error by remember { mutableStateOf<String?>(null) }
     val first = remember { FocusRequester() }
+    val memory = rememberFocusMemory(first)
+    val searchField = remember { FocusRequester() }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
     // Retour : remonte en haut de la grille avant de quitter l'écran
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val gridScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -406,35 +498,70 @@ fun SeriesGridScreen(nav: Navigator, category: Category) {
     val list = loaded
     val isRecent = category == Catalog.RECENT
     val hidden = if (isRecent) lockedIds(Session.seriesCategories) else emptySet()
-    val sorted = remember(list, Prefs.sort, hidden, Prefs.groupSagas) {
-        val visible = (list ?: emptyList()).filter { it.categoryId !in hidden }
-        // Une même série en plusieurs qualités : on ne garde que la meilleure copie
-        val kept = if (Prefs.groupSagas) Duplicates.keepBest(visible, { it.name }) else visible
-        Catalog.sort(kept, if (isRecent) CatalogSort.RECENT else Prefs.sort, { it.name }, { it.rating }, { it.added })
+    val cleaned = Catalog.cleanQuery(query)
+    val sortMode = if (isRecent) CatalogSort.RECENT else Prefs.sort
+    val groupCopies = Prefs.groupSagas
+    // Calcul hors de l'écran : une grande catégorie ne fige plus la télécommande
+    val computed by produceState<List<SeriesItem>?>(null, list, sortMode, hidden, groupCopies, cleaned) {
+        val l = list ?: return@produceState
+        value = withContext(Dispatchers.Default) {
+            val visible = l.filter { it.categoryId !in hidden && Catalog.matchesQuery(it.name, cleaned) }
+            // Une même série en plusieurs qualités : on ne garde que la meilleure copie
+            val kept = if (groupCopies) Duplicates.keepBest(visible, { it.name }) else visible
+            Catalog.sort(kept, sortMode, { it.name }, { it.rating }, { it.added })
+        }
     }
-    LaunchedEffect(list != null) { if (sorted.isNotEmpty()) runCatching { first.requestFocus() } }
+    val sorted = computed ?: emptyList()
+    var focusDone by remember { mutableStateOf(false) }
+    LaunchedEffect(computed != null) {
+        if (computed != null && sorted.isNotEmpty() && !focusDone) {
+            focusDone = true
+            if (memory.startIndex in 1 until sorted.size) runCatching { gridState.scrollToItem(memory.startIndex) }
+            memory.requestStart()
+        }
+    }
 
     BackdropBackground(backdrop) {
         when {
             error != null -> Message("Impossible de charger les séries", error)
             list == null -> Loading()
             list.isEmpty() -> Message("Aucune série dans cette catégorie")
+            computed == null -> Loading()
             else -> Column(Modifier.fillMaxSize().padding(24.dp)) {
                 ScreenTitle(category.name)
                 if (!isRecent) SortBar(showSagas = true, series = true)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp)) {
+                    item {
+                        Chip(Lang.t(if (searching) "🔎 Fermer la recherche" else "🔎 Rechercher"), selected = searching) {
+                            searching = !searching
+                            if (!searching) query = ""
+                        }
+                    }
+                }
+                if (searching) {
+                    Spacer(Modifier.height(6.dp))
+                    CategorySearchField(query, { query = it }, searchField)
+                    LaunchedEffect(Unit) { runCatching { searchField.requestFocus() } }
+                }
                 Spacer(Modifier.height(8.dp))
-                LazyVerticalGrid(
+                if (sorted.isEmpty()) Message("Aucun résultat pour « $cleaned »")
+                else LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Adaptive(128.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(8.dp)
                 ) {
-                    items(sorted) { s ->
+                    itemsIndexed(sorted) { index, s ->
                         Box(
-                            (if (s == sorted.first()) Modifier.focusRequester(first) else Modifier)
+                            memory.modifier(index)
                                 // La rangée sélectionnée remonte toute seule en haut de l'écran
-                                .onFocusChanged { if (it.hasFocus) gridScope.launch { gridState.animateScrollToItem(sorted.indexOf(s)) } }
+                                .onFocusChanged {
+                                    if (it.hasFocus) {
+                                        memory.index = index
+                                        gridScope.launch { gridState.animateScrollToItem(index) }
+                                    }
+                                }
                         ) {
                             PosterCard(s.name, s.cover, onFocus = { backdrop = s.cover }) { nav.go(Screen.SeriesDetail(s)) }
                         }

@@ -317,13 +317,18 @@ fun ReplayScreen(nav: Navigator) {
                                 FocusCard(
                                     onClick = {
                                         val url = Session.api?.replayUrl(ch, p) ?: return@FocusCard
-                                        nav.go(Screen.Play(PlayItem(title = "${ch.name} · ${p.title}", url = url, replay = true)))
+                                        nav.go(Screen.Play(PlayItem(
+                                            title = "${ch.name} · ${p.title}", url = url, replay = true,
+                                            replayInfo = Session.api?.replayInfo(ch, p)
+                                        )))
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     focusedScale = 1.02f
                                 ) {
                                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Text(hour(p.start), fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.width(60.dp))
+                                        ReplayThumb(p.title, ch.icon)
+                                        Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(p.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             p.desc?.let { Text(it, fontSize = 12.sp, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis) }
@@ -336,6 +341,27 @@ fun ReplayScreen(nav: Navigator) {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Image du programme, à côté de son descriptif : l'affiche si TMDB la connaît, sinon le logo de la chaîne
+@Composable
+private fun ReplayThumb(title: String, logo: String?) {
+    var poster by remember(title) { mutableStateOf<String?>(null) }
+    LaunchedEffect(title) { poster = Tmdb.programmePoster(title) }
+    Box(
+        Modifier.width(60.dp).height(84.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2A2A2A)),
+        contentAlignment = Alignment.Center
+    ) {
+        val image = poster ?: logo
+        if (image != null) {
+            AsyncImage(
+                model = image,
+                contentDescription = null,
+                contentScale = if (poster != null) ContentScale.Crop else ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().padding(if (poster != null) 0.dp else 6.dp)
+            )
         }
     }
 }

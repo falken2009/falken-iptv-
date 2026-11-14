@@ -1,6 +1,9 @@
-• L'accueil sépare maintenant « Reprendre un film » et « Reprendre une série ».
-• Recherche globale : les chaînes apparaissent dans la recherche, à côté des films et des séries.
-• Ouverture beaucoup plus rapide : le catalogue est gardé sur la Fire TV et mis à jour en arrière-plan.
-• Nouveau réglage « Démarrer sur la dernière chaîne regardée », comme une box.
-• La fenêtre de mise à jour se ferme toute seule une fois l'installation lancée.
-• Nouveau bouton « Diagnostic des mises à jour » dans les Réglages.
+• Replay : les +2 min / -2 min (flèche bas / haut) sont instantanés, plus d'attente.
+• Replay : l'affiche du programme apparaît à côté du descriptif.
+• « Ma liste » sépare maintenant les films et les séries.
+• Chaque catégorie de films et de séries a un bouton « Rechercher » pour filtrer par titre.
+• Au premier lancement, l'appli demande la langue (français, anglais, espagnol). Modifiable dans les Réglages. Les menus principaux sont traduits, le reste progressivement.
+• Meilleure détection des sagas : « Jurassic Park » et « Jurassic World » sont regroupés même avec des titres différents.
+• Chargement des grandes catégories nettement plus rapide (calculs faits en arrière-plan).
+• En revenant d'une fiche ou d'une catégorie, on retrouve exactement la même place, plus de retour en haut.
+• Les derniers ajouts sont affichés en premier dans chaque catégorie.

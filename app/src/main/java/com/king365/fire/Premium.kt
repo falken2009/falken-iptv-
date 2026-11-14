@@ -22,9 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,9 +105,17 @@ object Premium {
     fun buy(sku: String) = billing.purchase(sku)
     fun restore() = billing.restore()
 
+    /// Après la saisie d'un code d'activation : l'appli se débloque tout de suite
+    fun refreshLicence() {
+        purchased = Licence.actif
+        sp?.edit()?.putBoolean("purchased", purchased)?.apply()
+        if (purchased) showPaywall = false
+    }
+
     val statusText: String
         get() = when {
             !enabled -> "Version perso : tout est débloqué"
+            BuildConfig.FLAVOR == "licence" -> Licence.texteEtat
             purchased -> "Premium actif ✓"
             trialDaysLeft > 0 -> "Essai gratuit : encore $trialDaysLeft jour${if (trialDaysLeft > 1) "s" else ""}"
             else -> "Version gratuite"
@@ -150,6 +160,10 @@ fun PremiumScreen(onClose: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 perks.forEach { Text("✓  $it", fontSize = 16.sp) }
             }
+            if (BuildConfig.FLAVOR == "licence") {
+                ActivationParCode(first) { onClose() }
+                return@Column
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 8.dp)) {
                 val month = Premium.prices[Premium.SKU_MONTH] ?: "1,99 €"
                 val year = Premium.prices[Premium.SKU_YEAR] ?: "14,99 €"
@@ -176,6 +190,48 @@ fun PremiumScreen(onClose: () -> Unit) {
                 color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+/// Saisie du code d'activation, pour la version vendue hors boutique
+@Composable
+private fun ActivationParCode(first: FocusRequester, onDone: () -> Unit) {
+    val context = LocalContext.current
+    val numero = remember { Licence.deviceId(context) }
+    var code by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+        Text("Numéro de cet appareil", color = Muted, fontSize = 13.sp)
+        Text(numero, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+        Text(
+            "Envoie ce numéro au moment de ton paiement : ton code d'activation est fabriqué " +
+                "pour cet appareil et ne marchera que sur lui.",
+            color = Muted, fontSize = 13.sp
+        )
+        OutlinedTextField(
+            value = code,
+            onValueChange = { code = it.uppercase() },
+            label = { Text("Code d'activation") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().focusRequester(first).okOpensKeyboard()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            ButtonTile("Activer", Modifier.width(330.dp)) {
+                message = Licence.activer(context, code)
+                if (Licence.actif) {
+                    Premium.refreshLicence()
+                    onDone()
+                }
+            }
+            ButtonTile("Plus tard", Modifier.width(330.dp), primary = false) { onDone() }
+        }
+        message?.let { Text(it, color = Muted, fontSize = 13.sp) }
+        Text(
+            "L'appli ne fournit aucune chaîne : elle lit le contenu de ton propre abonnement, " +
+                "souscrit auprès d'un service légal.",
+            color = Muted, fontSize = 12.sp
+        )
     }
 }
 

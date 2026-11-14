@@ -166,6 +166,13 @@ object Tmdb {
         val todo = list.take(MAX_PER_LIST)
         val gate = Semaphore(4)
         var changed = false
+        var chunkIndex = 0
+        suspend fun refresh() = withContext(Dispatchers.Main) {
+            update(list.map { m ->
+                if (m.icon.isNullOrBlank()) byMovieId[m.id]?.poster?.let { m.copy(icon = it) } ?: m else m
+            })
+            version++
+        }
         runCatching {
             coroutineScope {
                 todo.chunked(24).forEach { chunk ->
@@ -177,13 +184,12 @@ object Tmdb {
                         if (!icon.isNullOrBlank() && info.poster != null) fallbacks[icon] = info.poster
                         changed = true
                     }
-                    withContext(Dispatchers.Main) {
-                        update(list.map { m ->
-                            if (m.icon.isNullOrBlank()) byMovieId[m.id]?.poster?.let { m.copy(icon = it) } ?: m else m
-                        })
-                        version++
-                    }
+                    chunkIndex++
+                    // L'écran se recalcule (regroupement des sagas) : une fois tous les 4 paquets seulement,
+                    // sinon une grande catégorie se figeait à chaque paquet
+                    if (chunkIndex % 4 == 0) refresh()
                 }
+                refresh()
             }
         }
         if (changed) withContext(Dispatchers.IO) { save() }
@@ -208,6 +214,11 @@ object Tmdb {
         val todo = list.take(MAX_PER_LIST)
         val gate = Semaphore(4)
         val posters = HashMap<String, String>()
+        var chunkIndex = 0
+        suspend fun refresh() = withContext(Dispatchers.Main) {
+            update(list.map { s -> posters[s.id]?.let { s.copy(cover = it) } ?: s })
+            version++
+        }
         runCatching {
             coroutineScope {
                 todo.chunked(24).forEach { chunk ->
@@ -218,14 +229,40 @@ object Tmdb {
                         val cover = s.cover
                         if (cover.isNullOrBlank()) posters[s.id] = poster else fallbacks[cover] = poster
                     }
-                    withContext(Dispatchers.Main) {
-                        update(list.map { s -> posters[s.id]?.let { s.copy(cover = it) } ?: s })
-                        version++
-                    }
+                    chunkIndex++
+                    if (chunkIndex % 4 == 0) refresh()
                 }
+                refresh()
             }
         }
         withContext(Dispatchers.IO) { save() }
+    }
+
+    private val programmePosters = ConcurrentHashMap<String, String>() // "" = rien trouvé
+
+    /// Affiche d'un programme de télévision (film ou série diffusé), pour le replay.
+    /// Seul un titre identique à celui de TMDB est accepté : mieux vaut le logo de la chaîne
+    /// qu'une mauvaise affiche sur « Le journal de 20h ».
+    suspend fun programmePoster(title: String): String? {
+        if (!enabled) return null
+        val key = Duplicates.key(title)
+        if (key.length < 3) return null
+        programmePosters[key]?.let { return it.ifEmpty { null } }
+        val results = runCatching {
+            get("/search/multi", mapOf("query" to key, "language" to "fr-FR", "include_adult" to "false"))
+                .optJSONArray("results")
+        }.getOrNull() ?: return null // panne réseau : on ne retient pas « introuvable »
+        var poster: String? = null
+        for (i in 0 until results.length()) {
+            val o = results.optJSONObject(i) ?: continue
+            if (o.optString("media_type") != "movie" && o.optString("media_type") != "tv") continue
+            val name = o.optString("title").ifEmpty { o.optString("name") }
+            if (Duplicates.key(name) != key) continue
+            poster = image(o.optString("poster_path"))
+            if (poster != null) break
+        }
+        programmePosters[key] = poster ?: ""
+        return poster
     }
 
     /// Vérifie la clé saisie dans Réglages
@@ -241,6 +278,7 @@ object Tmdb {
         cache.clear()
         byMovieId.clear()
         fallbacks.clear()
+        programmePosters.clear()
         file?.delete()
         version++
     }

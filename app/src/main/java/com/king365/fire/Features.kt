@@ -228,16 +228,27 @@ fun WatchlistScreen(nav: Navigator) {
         }
         Column(Modifier.fillMaxSize().padding(24.dp)) {
             ScreenTitle("MA LISTE")
+            val films = list.filter { it.kind != "series" }
+            val shows = list.filter { it.kind == "series" }
+            val firstEntry = (films + shows).first()
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(128.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(8.dp)
             ) {
-                items(list, key = { it.id }) { e ->
-                    Box(if (e == list.first()) Modifier.focusRequester(first) else Modifier) {
-                        PosterCard(e.name, e.image, badge = if (e.kind == "series") "Série" else null) {
-                            if (e.kind == "series") nav.go(Screen.SeriesDetail(e.series())) else nav.go(Screen.MovieDetail(e.movie()))
+                // Films et séries séparés, chacun sous son titre
+                listOf("Films" to films, "Séries" to shows).forEach { (label, group) ->
+                    if (group.isNotEmpty()) {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            Text("$label (${group.size})", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        }
+                        items(group, key = { it.id }) { e ->
+                            Box(if (e == firstEntry) Modifier.focusRequester(first) else Modifier) {
+                                PosterCard(e.name, e.image) {
+                                    if (e.kind == "series") nav.go(Screen.SeriesDetail(e.series())) else nav.go(Screen.MovieDetail(e.movie()))
+                                }
+                            }
                         }
                     }
                 }
