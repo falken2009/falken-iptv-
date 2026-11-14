@@ -716,6 +716,35 @@ object Catalog {
         return folded to word.replaceFirstChar { it.uppercase() }
     }
 
+    /// Grandes franchises dont les films n'ont pas le même nom : (nom affiché, mots qui les reconnaissent)
+    private val franchises = listOf(
+        "Batman" to listOf("batman", "dark knight"),
+        "Superman" to listOf("superman", "man of steel"),
+        "Spider-Man" to listOf("spider man", "spiderman", "amazing spider"),
+        "X-Men" to listOf("x men", "wolverine", "deadpool"),
+        "Avengers" to listOf("avengers", "iron man", "captain america", "thor", "hulk", "black widow", "guardians of the galaxy", "les gardiens de la galaxie"),
+        "Star Wars" to listOf("star wars", "rogue one", "mandalorian"),
+        "Harry Potter" to listOf("harry potter", "fantastic beasts", "animaux fantastiques"),
+        "Le Seigneur des anneaux" to listOf("seigneur des anneaux", "lord of the rings", "le hobbit", "the hobbit"),
+        "Fast & Furious" to listOf("fast furious", "fast and furious", "furious 7"),
+        "James Bond" to listOf("james bond", "007"),
+        "Mission Impossible" to listOf("mission impossible"),
+        "Jurassic Park" to listOf("jurassic")
+    )
+
+    private fun words(text: String) = " " + fold(text).map { if (it.isLetterOrDigit()) it else ' ' }.joinToString("").replace(Regex(" +"), " ").trim() + " "
+
+    /// Franchise reconnue dans un titre (ou dans le nom de saga TMDB) : la plus tôt citée l'emporte
+    private fun franchiseOf(text: String): String? {
+        val t = words(text)
+        return franchises
+            .mapNotNull { (name, terms) ->
+                val at = terms.mapNotNull { term -> t.indexOf(words(term)).takeIf { it >= 0 } }.minOrNull()
+                if (at == null) null else at to name
+            }
+            .minByOrNull { it.first }?.second
+    }
+
     fun groupSagas(list: List<Movie>): List<MovieEntry> {
         // Un même film en plusieurs qualités : on ne garde que la meilleure copie
         val movies = Duplicates.keepBest(list, { it.name }, { it.year })
@@ -740,11 +769,15 @@ object Catalog {
         // Un film que TMDB n'a pas rattaché mais dont le titre contient le nom d'une saga connue
         // dans cette liste (« Le Prince de Sang-Mêlé » reste à part, mais « Harry Potter : le film » rejoint Harry Potter)
         val sagaNames = onlineByName.entries.filter { it.key.count { c -> c.isLetter() } >= 6 }
-        val firstKeys = heuristic.mapIndexed { i, h ->
+        val sagaKeys = heuristic.mapIndexed { i, h ->
             online[i] ?: onlineByName[h.first] ?: run {
                 val title = " " + fold(bases[i].display).filter { it.isLetterOrDigit() || it == ' ' } + " "
                 sagaNames.firstOrNull { title.contains(" " + it.key.filter { c -> c.isLetterOrDigit() || c == ' ' } + " ") }?.value ?: h
             }
+        }
+        // Grandes franchises (Batman, Superman…) : tous leurs films ensemble, quels que soient leurs titres
+        val firstKeys = sagaKeys.mapIndexed { i, k ->
+            franchiseOf(movies[i].name + " " + (online[i]?.second ?: ""))?.let { "fr:$it" to it } ?: k
         }
         // « Deadpool & Wolverine », « Alien vs Predator » : un titre qui commence par le nom d'un autre film
         // (au moins 5 lettres) rejoint sa saga
