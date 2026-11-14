@@ -523,11 +523,14 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
                 // Image figée : la lecture dit « en cours » mais plus aucune image n'avance (ou le temps est bloqué)
                 val pos = player.currentPosition
                 val frames = player.videoDecoderCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount } ?: -1
-                val still = pos == lastPos || (frames >= 0 && frames == lastFrames && player.videoSize.width > 0)
+                val posStill = pos == lastPos
+                val framesStill = frames >= 0 && frames == lastFrames && player.videoSize.width > 0
+                val still = posStill || framesStill
                 lastPos = pos
                 lastFrames = frames
                 frozen = if (still) frozen + 2 else 0
-                if (frozen >= 8) {
+                // Temps bloqué : 2 s suffisent. Images seules bloquées : 6 s (une image fixe est parfois normale)
+                if (posStill && frozen >= 2 || frozen >= 6) {
                     frozen = 0
                     // On se reconnecte ; si ça fige encore, VLC prend le relais
                     if (retries >= 2) switchToVlc() else reconnect()
