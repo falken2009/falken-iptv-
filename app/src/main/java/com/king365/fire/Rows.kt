@@ -64,7 +64,7 @@ private fun <T> CatalogRowsScreen(
     // Affiche sélectionnée : image de fond et titre en haut de l'écran
     val focusedState = rememberDebounced<RowItem<T>?>(null, 250L)
     val focused = focusedState.value
-    // La première rangée chargée prend le focus (sans attendre « Derniers ajouts », plus long à charger)
+    // On arrive directement sur « Derniers ajouts » ; si cette rangée tarde (4 s), la première prête prend le focus
     var focusTaken by remember { mutableStateOf(false) }
     // Dernière affiche sélectionnée : retrouvée au retour d'un film (survit au changement d'écran)
     var lastRow by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
@@ -136,7 +136,7 @@ private fun <T> CatalogRowsScreen(
                             restoreItem = if (index == startRow) startItem else 0,
                             fallback = fallback,
                             claimFocus = {
-                                if (focusTaken || !(startRow == 0 || index == startRow || fallback)) false
+                                if (focusTaken || !(index == startRow || fallback)) false
                                 else { focusTaken = true; true }
                             },
                             onItemFocused = { lastItem = it },
