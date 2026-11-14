@@ -84,17 +84,27 @@ object Sync {
         }
     }
 
-    /// Récupère les abonnements de l'autre appareil, les ajoute, puis publie la liste complète
+    private fun entryJson(e: Prefs.WatchEntry) = JSONObject().put("k", e.kind).put("id", e.itemId).put("n", e.name)
+        .put("i", e.image ?: JSONObject.NULL).put("r", e.rating).put("e", e.ext ?: JSONObject.NULL)
+        .put("c", e.categoryId ?: JSONObject.NULL).put("y", e.year ?: JSONObject.NULL)
+
+    /// Récupère les abonnements et « Ma liste » de l'autre appareil, puis publie l'état complet
     suspend fun syncNow(): String = withContext(Dispatchers.IO) {
         val p = password
         if (p.isBlank()) return@withContext "Aucun mot de passe de synchronisation"
         runCatching {
             val id = docId(p)
             var added = 0
+            var listStamp = Prefs.watchlistStamp
+            if (listStamp == 0L && Prefs.watchlist.isNotEmpty()) {
+                listStamp = System.currentTimeMillis()
+                withContext(Dispatchers.Main) { Prefs.watchlistStamp = listStamp }
+            }
             val remote = request("GET", "/sync/$id.json")?.takeIf { it.isNotBlank() && it != "null" }
             if (remote != null) {
-                val text = decrypt(p, JSONObject(remote).getString("d"))
-                val a = JSONArray(text)
+                val text = decrypt(p, JSONObject(remote).getString("d")).trim()
+                val root = if (text.startsWith("[")) JSONObject().put("subs", JSONArray(text)) else JSONObject(text)
+                val a = root.optJSONArray("subs") ?: JSONArray()
                 val received = (0 until a.length()).mapNotNull { i ->
                     val o = a.optJSONObject(i) ?: return@mapNotNull null
                     Prefs.Subscription(
@@ -105,13 +115,34 @@ object Sync {
                 val before = Prefs.subscriptions.size
                 withContext(Dispatchers.Main) { Prefs.mergeSubscriptions(received) }
                 added = Prefs.subscriptions.size - before
+                // « Ma liste » : la version la plus récente remplace l'autre
+                val l = root.optJSONArray("list")
+                val remoteStamp = root.optLong("lt", 0L)
+                if (l != null && remoteStamp > listStamp) {
+                    val entries = (0 until l.length()).mapNotNull { i ->
+                        val o = l.optJSONObject(i) ?: return@mapNotNull null
+                        Prefs.WatchEntry(
+                            o.optString("k"), o.optString("id"), o.optString("n"),
+                            o.optString("i").takeIf { it.isNotEmpty() && it != "null" },
+                            o.optDouble("r", 0.0),
+                            o.optString("e").takeIf { it.isNotEmpty() && it != "null" },
+                            o.optString("c").takeIf { it.isNotEmpty() && it != "null" },
+                            o.optInt("y", 0).takeIf { it > 0 }
+                        )
+                    }
+                    withContext(Dispatchers.Main) { Prefs.replaceWatchlist(entries, remoteStamp) }
+                    listStamp = remoteStamp
+                }
             }
-            val list = JSONArray()
+            val subs = JSONArray()
             Prefs.subscriptions.forEach {
-                list.put(JSONObject().put("name", it.name).put("mode", it.mode).put("server", it.server)
+                subs.put(JSONObject().put("name", it.name).put("mode", it.mode).put("server", it.server)
                     .put("user", it.username).put("pass", it.password).put("m3u", it.m3uUrl))
             }
-            val doc = JSONObject().put("d", encrypt(p, list.toString())).put("t", System.currentTimeMillis())
+            val list = JSONArray()
+            Prefs.watchlist.forEach { list.put(entryJson(it)) }
+            val state = JSONObject().put("subs", subs).put("list", list).put("lt", listStamp)
+            val doc = JSONObject().put("d", encrypt(p, state.toString())).put("t", System.currentTimeMillis())
             request("PUT", "/sync/$id.json", doc.toString())
             if (added > 0) "Synchronisé ✓ · $added abonnement(s) reçu(s)" else "Synchronisé ✓"
         }.getOrElse { "Échec de la synchronisation : ${it.message}" }

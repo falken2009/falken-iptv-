@@ -284,15 +284,33 @@ object Prefs {
 
     fun inWatchlist(id: String) = watchlist.any { it.id == id }
 
-    fun toggleWatchlist(entry: WatchEntry) {
-        watchlist = if (inWatchlist(entry.id)) watchlist.filter { it.id != entry.id } else listOf(entry) + watchlist
+    /// Date du dernier changement de « Ma liste » : la synchronisation garde la liste la plus récente
+    var watchlistStamp: Long
+        get() = sp.getLong(pkey("watchlistStamp"), 0L)
+        set(v) = sp.edit().putLong(pkey("watchlistStamp"), v).apply()
+
+    private fun persistWatchlist() {
         val a = JSONArray()
         watchlist.forEach {
             a.put(JSONObject().put("k", it.kind).put("id", it.itemId).put("n", it.name).put("i", it.image)
                 .put("r", it.rating).put("e", it.ext).put("c", it.categoryId).put("y", it.year?.toString()))
         }
         sp.edit().putString(pkey("watchlist"), a.toString()).apply()
+    }
+
+    fun toggleWatchlist(entry: WatchEntry) {
+        watchlist = if (inWatchlist(entry.id)) watchlist.filter { it.id != entry.id } else listOf(entry) + watchlist
+        persistWatchlist()
+        watchlistStamp = System.currentTimeMillis()
         Sauvegarde.saveAsync()
+        Sync.syncAsync()
+    }
+
+    /// Remplace « Ma liste » par celle reçue de la synchronisation (plus récente)
+    fun replaceWatchlist(list: List<WatchEntry>, stamp: Long) {
+        watchlist = list
+        persistWatchlist()
+        watchlistStamp = stamp
     }
 
     // ---------- Sauvegarde des favoris (chaînes, films, séries) ----------
