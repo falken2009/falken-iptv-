@@ -678,6 +678,16 @@ object Catalog {
         """(?i)[\[(|]?\b(4k|uhd|fhd|hd|sd|hdr10|hdr|multi|vostfr|vff|vf|1080p|720p|2160p|hevc|h265|x265|x264)\b[\])|]?"""
     )
 
+    private val numberWords = mapOf(
+        "deux" to "2", "trois" to "3", "quatre" to "4", "cinq" to "5", "six" to "6", "sept" to "7",
+        "huit" to "8", "neuf" to "9", "dix" to "10", "two" to "2", "three" to "3", "four" to "4",
+        "five" to "5", "seven" to "7", "eight" to "8", "nine" to "9", "ten" to "10"
+    )
+
+    /// « Les quatre fantastiques » = « Les 4 fantastiques » : les nombres en lettres deviennent des chiffres
+    private fun digits(text: String) =
+        text.split(" ").joinToString(" ") { numberWords[it] ?: it }
+
     private fun base(name: String): Base {
         var s = stripPrefix(name)
         s = qualityTags.replace(s, " ").replace(Regex("\\s{2,}"), " ").trim()
@@ -696,7 +706,7 @@ object Catalog {
                 pair = display to fold(display)
             }
         }
-        return Base(s, fold(s), pair)
+        return Base(s, digits(fold(s)), pair)
     }
 
     /// Premiers mots trop courants pour dire que deux films appartiennent à la même saga
@@ -729,6 +739,7 @@ object Catalog {
         "Fast & Furious" to listOf("fast furious", "fast and furious", "furious 7"),
         "James Bond" to listOf("james bond", "007"),
         "Mission Impossible" to listOf("mission impossible"),
+        "Les 4 Fantastiques" to listOf("fantastic four", "4 fantastiques", "quatre fantastiques", "fantastic 4"),
         "Jurassic Park" to listOf("jurassic")
     )
 
