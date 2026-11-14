@@ -28,7 +28,7 @@ object Tmdb {
     private const val API = "https://api.themoviedb.org/3"
     private const val IMAGES = "https://image.tmdb.org/t/p/w342"
     /// Titres traités au maximum par écran (les catalogues peuvent contenir des dizaines de milliers de films)
-    private const val MAX_PER_LIST = 600
+    private const val MAX_PER_LIST = 2000
 
     private data class Info(val poster: String?, val collectionId: Int?, val collectionName: String?)
 

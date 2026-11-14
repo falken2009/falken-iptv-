@@ -712,7 +712,7 @@ object Catalog {
     private fun leadWord(display: String): Pair<String, String>? {
         val word = display.split(" ").firstOrNull { it.isNotEmpty() } ?: return null
         val folded = fold(word).filter { it.isLetter() }
-        if (folded.length < 7 || folded in stopwords || folded in genericLeads) return null
+        if (folded.length < 6 || folded in stopwords || folded in genericLeads) return null
         return folded to word.replaceFirstChar { it.uppercase() }
     }
 
@@ -737,7 +737,15 @@ object Catalog {
         // la saga TMDB qui porte son nom (« Deadpool » → « Deadpool »)
         val online = movies.map { Tmdb.collection(it) }
         val onlineByName = online.filterNotNull().associate { fold(it.second) to it }
-        val firstKeys = heuristic.mapIndexed { i, h -> online[i] ?: onlineByName[h.first] ?: h }
+        // Un film que TMDB n'a pas rattaché mais dont le titre contient le nom d'une saga connue
+        // dans cette liste (« Le Prince de Sang-Mêlé » reste à part, mais « Harry Potter : le film » rejoint Harry Potter)
+        val sagaNames = onlineByName.entries.filter { it.key.count { c -> c.isLetter() } >= 6 }
+        val firstKeys = heuristic.mapIndexed { i, h ->
+            online[i] ?: onlineByName[h.first] ?: run {
+                val title = " " + fold(bases[i].display).filter { it.isLetterOrDigit() || it == ' ' } + " "
+                sagaNames.firstOrNull { title.contains(" " + it.key.filter { c -> c.isLetterOrDigit() || c == ' ' } + " ") }?.value ?: h
+            }
+        }
         // « Deadpool & Wolverine », « Alien vs Predator » : un titre qui commence par le nom d'un autre film
         // (au moins 5 lettres) rejoint sa saga
         val known = firstKeys.associate { it.first to it.second }
