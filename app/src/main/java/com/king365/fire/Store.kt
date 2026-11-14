@@ -857,10 +857,11 @@ object Catalog {
                         val ra = if (k.first == "fr:$MCU") mcuRank(a.name) else null
                         val rb = if (k.first == "fr:$MCU") mcuRank(b.name) else null
                         if (ra != null && rb != null && ra != rb) return@sortedWith ra - rb
-                        val ya = a.year
-                        val yb = b.year
-                        if (ya != null && yb != null && ya != yb) ya - yb
-                        else naturalCompare(sortKey(a.name), sortKey(b.name))
+                        // Ordre de sortie : date exacte de TMDB, sinon l'année du fournisseur
+                        val da = Tmdb.releaseDate(a) ?: a.year?.let { "$it-01-01" }
+                        val db = Tmdb.releaseDate(b) ?: b.year?.let { "$it-01-01" }
+                        val byDate = if (da != null && db != null) da.compareTo(db) else 0
+                        if (byDate != 0) byDate else naturalCompare(sortKey(a.name), sortKey(b.name))
                     }
                     entries.add(MovieEntry.Saga(names[k.first] ?: m.name, ordered))
                 }

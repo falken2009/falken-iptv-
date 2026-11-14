@@ -30,7 +30,7 @@ object Tmdb {
     /// Titres traités au maximum par écran (les catalogues peuvent contenir des dizaines de milliers de films)
     private const val MAX_PER_LIST = 2000
 
-    private data class Info(val poster: String?, val collectionId: Int?, val collectionName: String?)
+    private data class Info(val poster: String?, val collectionId: Int?, val collectionName: String?, val date: String? = null)
 
     private val cache = ConcurrentHashMap<String, Info>()
     private val byMovieId = ConcurrentHashMap<String, Info>()
@@ -56,12 +56,16 @@ object Tmdb {
         runCatching {
             if (!f.exists()) return
             val root = JSONObject(f.readText())
+            // Ancien format sans date de sortie : on repart de zéro pour récupérer les dates
+            if (root.optInt("_v") < 2) return
             for (key in root.keys()) {
+                if (key == "_v") continue
                 val o = root.getJSONObject(key)
                 cache[key] = Info(
                     poster = o.optString("p").ifEmpty { null },
                     collectionId = if (o.has("c")) o.getInt("c") else null,
-                    collectionName = o.optString("n").ifEmpty { null }
+                    collectionName = o.optString("n").ifEmpty { null },
+                    date = o.optString("d").ifEmpty { null }
                 )
             }
         }
@@ -71,16 +75,22 @@ object Tmdb {
         val f = file ?: return
         runCatching {
             val root = JSONObject()
+            root.put("_v", 2)
             for ((key, info) in cache) {
                 val o = JSONObject()
                 info.poster?.let { o.put("p", it) }
                 info.collectionId?.let { o.put("c", it) }
                 info.collectionName?.let { o.put("n", it) }
+                info.date?.let { o.put("d", it) }
                 root.put(key, o)
             }
             f.writeText(root.toString())
         }
     }
+
+    /// Date de sortie « aaaa-mm-jj » d'après TMDB, si connue
+    fun releaseDate(movie: Movie): String? =
+        (byMovieId[movie.id] ?: cache[movieKey(movie)])?.date
 
     /// Saga d'un film d'après TMDB : (clé de regroupement, nom affiché)
     fun collection(movie: Movie): Pair<String, String>? {
@@ -142,7 +152,8 @@ object Tmdb {
             Info(
                 poster = image(first.optString("poster_path")),
                 collectionId = coll?.optInt("id")?.takeIf { it > 0 },
-                collectionName = coll?.optString("name")?.let(::cleanCollection)
+                collectionName = coll?.optString("name")?.let(::cleanCollection),
+                date = first.optString("release_date").takeIf { it.length >= 4 }
             )
         }
         cache[key] = info
