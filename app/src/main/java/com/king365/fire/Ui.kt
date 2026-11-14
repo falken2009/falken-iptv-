@@ -512,3 +512,28 @@ fun Modifier.okOpensKeyboard(): Modifier {
         false
     }
 }
+
+// ---------- Valeur qui attend que le focus se pose ----------
+
+/// Quand on parcourt une grille, le fond d'écran et le titre ne changent qu'une fois la sélection
+/// arrêtée : sinon tout l'écran était recalculé à chaque case traversée, d'où la lenteur.
+@androidx.compose.runtime.Stable
+class Debounced<T>(initial: T, private val scope: kotlinx.coroutines.CoroutineScope, private val ms: Long) {
+    var value by androidx.compose.runtime.mutableStateOf(initial)
+        private set
+    private var job: kotlinx.coroutines.Job? = null
+
+    fun set(v: T) {
+        job?.cancel()
+        job = scope.launch {
+            kotlinx.coroutines.delay(ms)
+            value = v
+        }
+    }
+}
+
+@Composable
+fun <T> rememberDebounced(initial: T, ms: Long = 350L): Debounced<T> {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return androidx.compose.runtime.remember { Debounced(initial, scope, ms) }
+}

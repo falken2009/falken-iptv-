@@ -236,7 +236,8 @@ fun MovieGridScreen(nav: Navigator, category: Category) {
     val gridScope = androidx.compose.runtime.rememberCoroutineScope()
     BackToTop(gridState.firstVisibleItemIndex == 0, { gridState.scrollToItem(0) }, first)
     // Image de fond : l'affiche sélectionnée
-    var backdrop by remember { mutableStateOf<String?>(null) }
+    val backdropState = rememberDebounced<String?>(null)
+    val backdrop = backdropState.value
 
     LaunchedEffect(category.id) {
         if (movies == null) {
@@ -358,13 +359,13 @@ fun MovieGridScreen(nav: Navigator, category: Category) {
                         ) {
                             when (entry) {
                                 is Catalog.MovieEntry.Single -> PosterCard(
-                                    entry.movie.name, entry.movie.icon, onFocus = { backdrop = entry.movie.icon }
+                                    entry.movie.name, entry.movie.icon, onFocus = { backdropState.set(entry.movie.icon) }
                                 ) {
                                     nav.go(Screen.MovieDetail(entry.movie))
                                 }
                                 is Catalog.MovieEntry.Saga -> PosterCard(
                                     entry.name, entry.movies.first().icon, badge = "${entry.movies.size} films",
-                                    onFocus = { backdrop = entry.movies.first().icon }
+                                    onFocus = { backdropState.set(entry.movies.first().icon) }
                                 ) {
                                     nav.go(Screen.Saga(entry.name, entry.movies))
                                 }
@@ -385,7 +386,8 @@ fun SagaScreen(nav: Navigator, name: String, movies: List<Movie>) {
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val gridScope = androidx.compose.runtime.rememberCoroutineScope()
     BackToTop(gridState.firstVisibleItemIndex == 0, { gridState.scrollToItem(0) }, first)
-    var backdrop by remember { mutableStateOf(movies.firstOrNull()?.icon) }
+    val backdropState = rememberDebounced(movies.firstOrNull()?.icon)
+    val backdrop = backdropState.value
     LaunchedEffect(Unit) {
         if (memory.startIndex in 1 until movies.size) runCatching { gridState.scrollToItem(memory.startIndex) }
         memory.requestStart()
@@ -411,7 +413,7 @@ fun SagaScreen(nav: Navigator, name: String, movies: List<Movie>) {
                                     }
                                 }
                         ) {
-                        PosterCard(m.name, m.icon, onFocus = { backdrop = m.icon }) { nav.go(Screen.MovieDetail(m)) }
+                        PosterCard(m.name, m.icon, onFocus = { backdropState.set(m.icon) }) { nav.go(Screen.MovieDetail(m)) }
                     }
                 }
             }
@@ -482,7 +484,8 @@ fun SeriesGridScreen(nav: Navigator, category: Category) {
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val gridScope = androidx.compose.runtime.rememberCoroutineScope()
     BackToTop(gridState.firstVisibleItemIndex == 0, { gridState.scrollToItem(0) }, first)
-    var backdrop by remember { mutableStateOf<String?>(null) }
+    val backdropState = rememberDebounced<String?>(null)
+    val backdrop = backdropState.value
 
     LaunchedEffect(category.id) {
         if (loaded == null) {
@@ -568,7 +571,7 @@ fun SeriesGridScreen(nav: Navigator, category: Category) {
                                     }
                                 }
                         ) {
-                            PosterCard(s.name, s.cover, onFocus = { backdrop = s.cover }) { nav.go(Screen.SeriesDetail(s)) }
+                            PosterCard(s.name, s.cover, onFocus = { backdropState.set(s.cover) }) { nav.go(Screen.SeriesDetail(s)) }
                         }
                     }
                 }

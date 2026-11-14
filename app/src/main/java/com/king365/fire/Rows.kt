@@ -62,7 +62,8 @@ private fun <T> CatalogRowsScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var askPin by remember { mutableStateOf(false) }
     // Affiche sélectionnée : image de fond et titre en haut de l'écran
-    var focused by remember { mutableStateOf<RowItem<T>?>(null) }
+    val focusedState = rememberDebounced<RowItem<T>?>(null, 250L)
+    val focused = focusedState.value
     // La première rangée chargée prend le focus (sans attendre « Derniers ajouts », plus long à charger)
     var focusTaken by remember { mutableStateOf(false) }
     // Dernière affiche sélectionnée : retrouvée au retour d'un film (survit au changement d'écran)
@@ -142,7 +143,7 @@ private fun <T> CatalogRowsScreen(
                             topFocus = if (category == Catalog.RECENT) topFocus else null,
                             loadRow = loadRow,
                             describe = describe,
-                            onFocus = { focused = it },
+                            onFocus = { focusedState.set(it) },
                             onItem = onItem,
                             onAll = { onAll(category) },
                             onLocked = { askPin = true }
