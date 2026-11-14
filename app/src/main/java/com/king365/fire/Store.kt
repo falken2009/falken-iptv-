@@ -455,6 +455,8 @@ object Prefs {
 object Session {
     var api: XtreamApi? = null
     /// Chaîne à ouvrir après avoir touché un rappel
+    /// Ce que la recherche doit couvrir : « all », « movies » ou « series »
+    var searchScope = "all"
     var pendingPlay by mutableStateOf<PlayItem?>(null)
     var account: Account? = null
 

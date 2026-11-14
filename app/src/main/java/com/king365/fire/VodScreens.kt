@@ -73,6 +73,7 @@ private fun CategoryScreen(
     load: suspend () -> List<Category>,
     cached: List<Category>,
     store: (List<Category>) -> Unit,
+    onSearch: () -> Unit,
     onSelect: (Category) -> Unit
 ) {
     var categories by remember { mutableStateOf(cached) }
@@ -106,6 +107,8 @@ private fun CategoryScreen(
             categories.isEmpty() -> Message("Aucune catégorie")
             else -> Column(Modifier.fillMaxSize().padding(24.dp)) {
                 ScreenTitle(title)
+                ButtonTile(Lang.t("🔎 Rechercher"), Modifier.width(260.dp), primary = false) { onSearch() }
+                Spacer(Modifier.height(8.dp))
                 LazyVerticalGrid(
                     state = catState,
                     columns = GridCells.Adaptive(260.dp),
@@ -150,6 +153,7 @@ fun MovieCategoriesScreen(nav: Navigator) = if (Session.api == null) XtreamOnly(
     load = { Session.api!!.vodCategories() },
     cached = Session.vodCategories,
     store = { Session.vodCategories = it },
+    onSearch = { Session.searchScope = "movies"; nav.go(Screen.Search) },
     onSelect = { nav.go(Screen.MovieGrid(it)) }
 )
 
@@ -159,6 +163,7 @@ fun SeriesCategoriesScreen(nav: Navigator) = if (Session.api == null) XtreamOnly
     load = { Session.api!!.seriesCategories() },
     cached = Session.seriesCategories,
     store = { Session.seriesCategories = it },
+    onSearch = { Session.searchScope = "series"; nav.go(Screen.Search) },
     onSelect = { nav.go(Screen.SeriesGrid(it)) }
 )
 
@@ -675,6 +680,8 @@ private fun EpisodeRow(e: Episode, onPlay: (Long?) -> Unit) {
 fun SearchScreen(nav: Navigator) {
     val xtream = Session.api != null
     val context = LocalContext.current
+    // Recherche ouverte depuis Films ou Séries : seulement ce type de contenu
+    val scope = rememberSaveable { Session.searchScope.also { Session.searchScope = "all" } }
     var query by rememberSaveable { mutableStateOf("") }
     var movies by remember { mutableStateOf(Session.allMovies) }
     var series by remember { mutableStateOf(Session.allSeries) }
@@ -703,16 +710,16 @@ fun SearchScreen(nav: Navigator) {
 
     val cleaned = Catalog.cleanQuery(query)
     val lockedLive = Session.liveCategories.filter { Prefs.isLocked(it.name) }.map { it.id }.toSet()
-    val channelResults = remember(cleaned, channelsLoaded, lockedLive, Prefs.unlocked) {
-        Catalog.rank(Session.liveChannels.filter { it.categoryId !in lockedLive }, cleaned, { it.name })
+    val channelResults = remember(cleaned, channelsLoaded, lockedLive, Prefs.unlocked, scope) {
+        if (scope != "all") emptyList() else Catalog.rank(Session.liveChannels.filter { it.categoryId !in lockedLive }, cleaned, { it.name })
     }
     val lockedVod = Session.vodCategories.filter { Prefs.isLocked(it.name) }.map { it.id }.toSet()
     val lockedSeries = Session.seriesCategories.filter { Prefs.isLocked(it.name) }.map { it.id }.toSet()
-    val movieResults = remember(cleaned, movies, lockedVod) {
-        Catalog.rank((movies ?: emptyList()).filter { it.categoryId !in lockedVod }, cleaned, { it.name })
+    val movieResults = remember(cleaned, movies, lockedVod, scope) {
+        if (scope == "series") emptyList() else Catalog.rank((movies ?: emptyList()).filter { it.categoryId !in lockedVod }, cleaned, { it.name })
     }
-    val seriesResults = remember(cleaned, series, lockedSeries) {
-        Catalog.rank((series ?: emptyList()).filter { it.categoryId !in lockedSeries }, cleaned, { it.name })
+    val seriesResults = remember(cleaned, series, lockedSeries, scope) {
+        if (scope == "movies") emptyList() else Catalog.rank((series ?: emptyList()).filter { it.categoryId !in lockedSeries }, cleaned, { it.name })
     }
 
     KingBackground(dimmed = true) {
@@ -721,7 +728,7 @@ fun SearchScreen(nav: Navigator) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Une chaîne, un film ou une série") },
+                    label = { Text(when (scope) { "movies" -> "Un film"; "series" -> "Une série"; else -> "Une chaîne, un film ou une série" }) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
                     keyboardActions = KeyboardActions(onSearch = { }),

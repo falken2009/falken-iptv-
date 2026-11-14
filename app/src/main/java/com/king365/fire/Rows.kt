@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -52,7 +54,8 @@ private fun <T> CatalogRowsScreen(
     loadRow: suspend (Category) -> List<T>,
     describe: (T) -> RowItem<T>,
     onItem: (T) -> Unit,
-    onAll: (Category) -> Unit
+    onAll: (Category) -> Unit,
+    onSearch: () -> Unit
 ) {
     var categories by remember { mutableStateOf(cachedCategories) }
     var loading by remember { mutableStateOf(cachedCategories.isEmpty()) }
@@ -99,7 +102,11 @@ private fun <T> CatalogRowsScreen(
             categories.isEmpty() -> Message("Aucune catégorie")
             else -> Column(Modifier.fillMaxSize().padding(start = 28.dp, top = 20.dp)) {
                 // En-tête : titre de l'écran puis le titre sélectionné
-                Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = KingRed)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = KingRed)
+                    Spacer(Modifier.width(24.dp))
+                    ButtonTile(Lang.t("🔎 Rechercher"), Modifier.width(220.dp), primary = false) { onSearch() }
+                }
                 Text(
                     focused?.name ?: " ",
                     fontSize = 26.sp,
@@ -292,7 +299,8 @@ fun MovieRowsScreen(nav: Navigator) = if (Session.api == null) XtreamOnly("les f
         RowItem(m, m.name, m.icon, listOfNotNull(m.year?.toString(), m.genre, stars(m.rating)).joinToString("  ·  ").ifEmpty { null })
     },
     onItem = { nav.go(Screen.MovieDetail(it)) },
-    onAll = { nav.go(Screen.MovieGrid(it)) }
+    onAll = { nav.go(Screen.MovieGrid(it)) },
+    onSearch = { Session.searchScope = "movies"; nav.go(Screen.Search) }
 )
 
 @Composable
@@ -323,5 +331,6 @@ fun SeriesRowsScreen(nav: Navigator) = if (Session.api == null) XtreamOnly("les 
     },
     describe = { s -> RowItem(s, s.name, s.cover, stars(s.rating)) },
     onItem = { nav.go(Screen.SeriesDetail(it)) },
-    onAll = { nav.go(Screen.SeriesGrid(it)) }
+    onAll = { nav.go(Screen.SeriesGrid(it)) },
+    onSearch = { Session.searchScope = "series"; nav.go(Screen.Search) }
 )
