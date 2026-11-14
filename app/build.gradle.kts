@@ -64,7 +64,7 @@ android {
         create("perso") {
             dimension = "distribution"
             // Clé TMDB intégrée à l'appli, lue dans le secret GitHub TMDB_API_KEY (jamais écrite dans le code)
-            buildConfigField("String", "TMDB_KEY", "\"${System.getenv("TMDB_API_KEY") ?: ""}\"")
+            buildConfigField("String", "TMDB_KEY", "\"${System.getenv("TMDB_API_KEY") ?: "aae8b246c5ca5afab36997eac24c0c5f"}\"")
             buildConfigField("boolean", "PREMIUM", "false")
             buildConfigField("boolean", "TMDB_ALLOWED", "true")
             buildConfigField("String", "LICENCE_SECRET", "\"\"")
