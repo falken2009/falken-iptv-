@@ -667,7 +667,7 @@ object Catalog {
     private val yearAtEnd = Regex("""\s+(19|20)\d{2}\s*$""")
     private val subtitle = Regex("""\s*(:|\s[-–—]\s)""")
     private val sequel = Regex(
-        """\s+((partie|part|chapitre|chapter|episode|épisode|volume|vol\.?|tome)\s*)?(\d{1,2}|[ivx]{1,4})\s*$""",
+        """\s+((partie|part|chapitre|chapter|episode|épisode|volume|vol\.?|tome)\s*)?(\d{1,2}|[ivx]{1,4}|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|two|three|four|five|seven|eight|nine|ten)\s*$""",
         RegexOption.IGNORE_CASE
     )
 
