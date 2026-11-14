@@ -77,6 +77,7 @@ sealed interface Screen {
     data object Account : Screen
     data object Settings : Screen
     data object Language : Screen
+    data object Transfer : Screen
     data object Profiles : Screen
     data object Watchlist : Screen
     data object Multi : Screen
@@ -184,6 +185,7 @@ fun AppRoot() {
                     Screen.Search -> SearchScreen(nav)
                     Screen.Account -> AccountScreen(onBack = { nav.back() })
                     Screen.Language -> LanguageScreen(onDone = { nav.back() })
+                    Screen.Transfer -> TransferScreen(onBack = { nav.back() })
                     Screen.Profiles -> ProfilesScreen(onDone = { nav.home() })
                     Screen.Watchlist -> WatchlistScreen(nav)
                     Screen.Multi -> MultiScreen(nav)
@@ -198,7 +200,8 @@ fun AppRoot() {
                             if (Session.restore()) nav.home() else loggedIn = false
                         },
                         onSwitchProfile = { nav.go(Screen.Profiles) },
-                        onLanguage = { nav.go(Screen.Language) }
+                        onLanguage = { nav.go(Screen.Language) },
+                        onTransfer = { nav.go(Screen.Transfer) }
                     )
                     is Screen.MovieGrid -> MovieGridScreen(nav, screen.category)
                     is Screen.Saga -> SagaScreen(nav, screen.name, screen.movies)

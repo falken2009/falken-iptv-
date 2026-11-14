@@ -425,7 +425,7 @@ private fun InfoLine(label: String, value: String) {
 // ---------- Réglages ----------
 
 @Composable
-fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit, onSwitchProfile: () -> Unit = {}, onLanguage: () -> Unit = {}) {
+fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit, onSwitchProfile: () -> Unit = {}, onLanguage: () -> Unit = {}, onTransfer: () -> Unit = {}) {
     var cleared by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     val parental = remember { ParentalFlow() }
@@ -469,6 +469,7 @@ fun SettingsScreen(onLogout: () -> Unit, onSwitch: (Prefs.Subscription) -> Unit,
                 storageAccess.launch(storagePermissions)
             }
             saveMessage?.let { Text(it, color = Muted, fontSize = 12.sp) }
+            ButtonTile("📱  Envoyer mon abonnement vers l'iPhone", Modifier.fillMaxWidth(), primary = false) { onTransfer() }
             ButtonTile("🌐  " + Lang.t("Langue de l'interface"), Modifier.fillMaxWidth(), primary = false) { onLanguage() }
             ButtonTile(Lang.t("🔄  Rechercher une mise à jour"), Modifier.fillMaxWidth(), primary = false) {
                 Updater.lastResult = "Recherche…"
