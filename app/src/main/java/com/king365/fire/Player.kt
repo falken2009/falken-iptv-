@@ -503,9 +503,12 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
         var black = 0
         var everStarted = false
         var watched: PlayItem? = null
+        var frozen = 0
+        var lastPos = -1L
+        var lastFrames = -1
         while (true) {
             delay(2_000)
-            if (watched !== latest) { watched = latest; everStarted = false; stuck = 0 }
+            if (watched !== latest) { watched = latest; everStarted = false; stuck = 0; frozen = 0; lastPos = -1L; lastFrames = -1 }
             if (player.isPlaying) everStarted = true
             // Film ou épisode qui ne démarre pas au bout de 15 s : VLC prend le relais
             if (!latest.live && error == null && !useVlc) {
@@ -517,7 +520,20 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
             if (!latest.live || error != null || useVlc) { stuck = 0; black = 0; continue }
             if (player.isPlaying) {
                 stuck = 0
-                retries = 0
+                // Image figée : la lecture dit « en cours » mais plus aucune image n'avance (ou le temps est bloqué)
+                val pos = player.currentPosition
+                val frames = player.videoDecoderCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount } ?: -1
+                val still = pos == lastPos || (frames >= 0 && frames == lastFrames && player.videoSize.width > 0)
+                lastPos = pos
+                lastFrames = frames
+                frozen = if (still) frozen + 2 else 0
+                if (frozen >= 8) {
+                    frozen = 0
+                    // On se reconnecte ; si ça fige encore, VLC prend le relais
+                    if (retries >= 2) switchToVlc() else reconnect()
+                    continue
+                }
+                if (!still) retries = 0
                 // Le son passe mais pas l'image (écran noir) : VLC prend le relais
                 black = if (player.videoSize.width == 0) black + 2 else 0
                 if (black >= 8) { black = 0; switchToVlc() }
