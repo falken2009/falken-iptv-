@@ -157,6 +157,17 @@ fun AppRoot() {
                 Prefs.savedChannel()?.let { nav.go(Screen.Play(it)) }
             }
             BackHandler(enabled = nav.canGoBack) { nav.back() }
+            // Sur l'accueil : Retour deux fois de suite pour quitter l'appli
+            val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+            var lastBack by remember { mutableStateOf(0L) }
+            BackHandler(enabled = !nav.canGoBack) {
+                val now = System.currentTimeMillis()
+                if (now - lastBack < 2500) activity?.finishAffinity()
+                else {
+                    lastBack = now
+                    activity?.let { android.widget.Toast.makeText(it, "Appuie encore sur Retour pour quitter", android.widget.Toast.LENGTH_SHORT).show() }
+                }
+            }
             val screen = nav.current
             // Garde la position dans les listes quand on revient en arrière
             saveable.SaveableStateProvider("${nav.currentId}-${screen::class.simpleName}") {
