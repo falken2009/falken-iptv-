@@ -639,7 +639,7 @@ object Epg {
         val now = System.currentTimeMillis()
         cache[streamId]?.let { if (now - it.first < 10 * 60_000) return it.second }
         val list = runCatching { Session.api?.shortEpg(streamId) ?: emptyList() }.getOrDefault(emptyList())
-        cache[streamId] = now to list
+        if (list.isNotEmpty()) cache[streamId] = now to list
         return list
     }
 

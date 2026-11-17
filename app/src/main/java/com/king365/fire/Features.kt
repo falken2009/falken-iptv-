@@ -425,6 +425,7 @@ fun GuideGridScreen(nav: Navigator) {
     var error by remember { mutableStateOf<String?>(null) }
     var category by remember { mutableStateOf<String?>(null) }
     var windowStart by remember { mutableLongStateOf(roundedNow()) }
+    var reloadKey by remember { mutableIntStateOf(0) }
     val first = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -453,6 +454,7 @@ fun GuideGridScreen(nav: Navigator) {
                     Chip("◀ 1 h", selected = false) { windowStart = maxOf(windowStart - 3_600_000L, roundedNow() - 3_600_000L) }
                     Chip("Maintenant", selected = windowStart == roundedNow()) { windowStart = roundedNow() }
                     Chip("1 h ▶", selected = false) { windowStart = minOf(windowStart + 3_600_000L, roundedNow() + 24 * 3_600_000L) }
+                    Chip("↻ Recharger le guide", selected = false) { Epg.clear(); reloadKey++ }
                     Text(SimpleDateFormat("EEE d · HH:mm", Locale.FRANCE).format(Date(windowStart)), color = Muted, fontSize = 13.sp)
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
@@ -481,7 +483,7 @@ fun GuideGridScreen(nav: Navigator) {
                         }
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
                             items(channels, key = { it.id }) { ch ->
-                                GuideRow(ch, windowStart, windowEnd, perMinute, channelWidth, gridWidth,
+                                GuideRow(ch, reloadKey, windowStart, windowEnd, perMinute, channelWidth, gridWidth,
                                     onPlay = { nav.go(Screen.Play(liveItemFor(ch, channels))) },
                                     onProgramme = { p ->
                                         if (p.start > System.currentTimeMillis()) {
@@ -513,6 +515,7 @@ private fun roundedNow(): Long {
 @Composable
 private fun GuideRow(
     channel: LiveChannel,
+    reloadKey: Int,
     windowStart: Long,
     windowEnd: Long,
     perMinute: Float,
@@ -522,7 +525,7 @@ private fun GuideRow(
     onProgramme: (Programme) -> Unit
 ) {
     var programmes by remember { mutableStateOf<List<Programme>>(emptyList()) }
-    LaunchedEffect(channel.id) { programmes = Epg.short(channel.id) }
+    LaunchedEffect(channel.id, reloadKey) { programmes = Epg.short(channel.id) }
     val tick = Prefs.reminderTick
     val reminders = remember(tick) { Prefs.reminders().map { it.id }.toSet() }
     val now = System.currentTimeMillis()
