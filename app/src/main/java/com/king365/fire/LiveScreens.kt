@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -264,10 +265,13 @@ fun ReplayScreen(nav: Navigator) {
     var loadingProgrammes by remember { mutableStateOf(false) }
     var dayOffset by remember { mutableStateOf(0) }
     val first = remember { FocusRequester() }
+    val dayFocus = remember { FocusRequester() }
 
     LaunchedEffect(loading) { if (!loading && channels.isNotEmpty()) runCatching { first.requestFocus() } }
     LaunchedEffect(selected?.id) {
         val ch = selected ?: return@LaunchedEffect
+        // Le choix d'une chaîne amène directement le curseur sur les jours
+        launch { delay(150); runCatching { dayFocus.requestFocus() } }
         loadingProgrammes = true
         programmes = runCatching { Session.api?.archive(ch.id) ?: emptyList() }.getOrDefault(emptyList())
         loadingProgrammes = false
@@ -302,7 +306,11 @@ fun ReplayScreen(nav: Navigator) {
                     ScreenTitle(ch.name)
                     val days = (0 until ch.archiveDays.coerceIn(1, 14)).toList()
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp)) {
-                        items(days) { d -> Chip(dayLabel(d), selected = d == dayOffset) { dayOffset = d } }
+                        items(days) { d ->
+                            Box(if (d == dayOffset) Modifier.focusRequester(dayFocus) else Modifier) {
+                                Chip(dayLabel(d), selected = d == dayOffset) { dayOffset = d }
+                            }
+                        }
                     }
                     Spacer(Modifier.height(10.dp))
                     val (from, to) = dayRange(dayOffset)
