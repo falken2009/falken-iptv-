@@ -24,7 +24,7 @@ android {
         // Fire TV : processeurs ARM uniquement (garde l'appli plus légère avec VLC)
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
         // Dépôt GitHub qui publie les mises à jour (rempli automatiquement pendant la compilation)
-        val repo = System.getenv("GITHUB_REPOSITORY") ?: "falken2009/falken-iptv-fire"
+        val repo = System.getenv("UPDATE_REPO") ?: System.getenv("GITHUB_REPOSITORY") ?: "falken2009/falken-iptv-fire"
         buildConfigField("String", "UPDATE_REPO", "\"$repo\"")
     }
 

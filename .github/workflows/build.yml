@@ -11,6 +11,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN != '' }}
+      # Si le secret RELEASES_TOKEN existe, les versions sont publiées dans un dépôt public séparé
+      # (sans code source) ; sinon elles restent dans ce dépôt, comme avant.
+      UPDATE_REPO: ${{ secrets.RELEASES_TOKEN != '' && 'falken2009/falken-iptv-maj' || github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,7 +70,20 @@ jobs:
             git log -1 --pretty=%s > NOUVEAUTES.txt
           fi
 
+      - name: Publier l'APK dans le dépôt de mises à jour (public, sans code)
+        if: env.HAS_RELEASES_TOKEN == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: falken2009/falken-iptv-maj
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: v${{ env.FALKEN_BUILD }}
+          name: Falken IPTV ${{ env.FALKEN_BUILD }}
+          files: Falken-IPTV.apk
+          make_latest: true
+          body_path: NOUVEAUTES.txt
+
       - name: Publier l'APK (lien de téléchargement direct pour le Fire Stick)
+        if: env.HAS_RELEASES_TOKEN != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.FALKEN_BUILD }}
