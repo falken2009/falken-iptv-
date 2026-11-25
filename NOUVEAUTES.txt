@@ -1,2 +1,3 @@
 Direct : touche gauche (ou bouton ⏮) pour revoir le programme depuis son début, gauche à nouveau pour revenir au direct
 Guide : bouton Recharger le guide
+Chaînes : bascule plus rapide vers l'autre format ou VLC quand une chaîne ne démarre pas (6 à 8 s au lieu de 12 à 15 s)
