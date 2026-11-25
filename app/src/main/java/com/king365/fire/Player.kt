@@ -117,6 +117,12 @@ class ZapPlayerView(context: Context) : PlayerView(context) {
     var onBack: (() -> Unit)? = null
     /// Replay : saut en avant ou en arrière (millisecondes) avec haut/bas, pour passer les pubs
     var onSkip: ((Long) -> Unit)? = null
+    /// Direct : retour au début du programme en cours (et retour au direct ensuite)
+    var onRestart: (() -> Unit)? = null
+        set(value) {
+            field = value
+            restartButton.visibility = if (value != null) View.VISIBLE else View.GONE
+        }
     /// Le menu de la vidéo s'affiche ou se cache (pour la barre d'infos de la chaîne)
     var onControllerVisible: ((Boolean) -> Unit)? = null
 
@@ -150,10 +156,15 @@ class ZapPlayerView(context: Context) : PlayerView(context) {
         setOnClickListener { action() }
     }
 
+    private val restartButton: TextView by lazy {
+        sideButton("⏮", "Début du programme") { onRestart?.invoke() }.apply { visibility = View.GONE }
+    }
+
     init {
         listOf(
             sideButton("▲", "Chaîne précédente") { onZap?.invoke(-1) },
-            sideButton("▼", "Chaîne suivante") { onZap?.invoke(1) }
+            sideButton("▼", "Chaîne suivante") { onZap?.invoke(1) },
+            restartButton
         ).forEach { button ->
             sideBar.addView(button, LinearLayout.LayoutParams(dp(64), dp(64)).apply { bottomMargin = dp(14) })
         }
@@ -166,7 +177,7 @@ class ZapPlayerView(context: Context) : PlayerView(context) {
             ).apply { marginEnd = dp(28) }
         )
         setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-            val show = visibility == View.VISIBLE && onZap != null
+            val show = visibility == View.VISIBLE && (onZap != null || onRestart != null)
             sideBar.visibility = if (show) View.VISIBLE else View.GONE
             onControllerVisible?.invoke(visibility == View.VISIBLE)
             // Menu caché : le lecteur reprend la main, sinon les flèches ne zappent plus
@@ -213,6 +224,11 @@ class ZapPlayerView(context: Context) : PlayerView(context) {
             }
             return true
         }
+        val restart = onRestart
+        if (restart != null && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && !isControllerFullyVisible) {
+            if (event.action == KeyEvent.ACTION_DOWN) restart()
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN && !isControllerFullyVisible) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_MENU -> onMenu?.let { it(); return true }
@@ -256,6 +272,8 @@ private class ZapAwarePlayer(player: Player) : ForwardingPlayer(player) {
 fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
     val context = LocalContext.current
     var current by remember { mutableStateOf(item) }
+    /// Chaîne en direct d'où on est parti pour revoir le programme depuis son début
+    var liveOrigin by remember { mutableStateOf<PlayItem?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var upNext by remember { mutableStateOf<PlayItem?>(null) }
     var countdown by remember { mutableIntStateOf(10) }
@@ -632,6 +650,34 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
         flashInfo()
     }
 
+    /// Direct : revoit le programme en cours depuis son début ; un deuxième appui revient au direct
+    fun restartProgramme() {
+        liveOrigin?.let { origin ->
+            liveOrigin = null
+            play(origin)
+            show("🔴 Retour au direct")
+            return
+        }
+        val api = Session.api
+        val id = current.streamId
+        val channel = Session.liveChannels.firstOrNull { it.id == id }
+        val now = System.currentTimeMillis()
+        val programme = programmes.firstOrNull { it.isOn(now) }
+        if (api == null || channel == null || programme == null || !(channel.hasArchive || programme.hasArchive)) {
+            show("Retour au début indisponible sur cette chaîne")
+            return
+        }
+        liveOrigin = current
+        play(
+            current.copy(
+                url = api.replayUrl(channel, programme), live = false, replay = true,
+                replayInfo = api.replayInfo(channel, programme), siblings = emptyList(), siblingIndex = 0
+            )
+        )
+        show("⏮ Début de « ${programme.title} » · gauche : retour au direct")
+    }
+    val canRestart = (current.live && current.streamId != null) || liveOrigin != null
+
     // Replay : rappel des touches pour passer les pubs
     LaunchedEffect(current.replayInfo?.channelId, current.title) {
         if (current.replay && (current.replayInfo?.offsetMs ?: 0L) == 0L) {
@@ -702,7 +748,8 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
                                 true
                             }
                             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                                if (!current.live) engine?.player?.let { it.time = (it.time - 10_000).coerceAtLeast(0); show("◀◀ 10 s") }
+                                if (canRestart && code == KeyEvent.KEYCODE_DPAD_LEFT) restartProgramme()
+                                else if (!current.live) engine?.player?.let { it.time = (it.time - 10_000).coerceAtLeast(0); show("◀◀ 10 s") }
                                 true
                             }
                             KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
@@ -740,6 +787,7 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
                     onExit()
                 }
                 view.onControllerVisible = { controlsVisible = it }
+                view.onRestart = if (canRestart) { { restartProgramme() } } else null
                 view.onSkip = if (current.replay) { delta -> skipBy(delta) } else null
                 view.onZap = if (canZap) { delta ->
                     zapBy(delta)
