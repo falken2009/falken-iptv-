@@ -1,5 +1,6 @@
 package com.king365.fire
 
+import kotlinx.coroutines.sync.withPermit
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
@@ -635,11 +636,22 @@ object Epg {
 
     fun clear() = cache.clear()
 
+    /// Le guide demande une chaîne par ligne : beaucoup de fournisseurs refusent trop de demandes à la fois
+    private val gate = kotlinx.coroutines.sync.Semaphore(3)
+
     suspend fun short(streamId: String): List<Programme> {
         val now = System.currentTimeMillis()
         cache[streamId]?.let { if (now - it.first < 10 * 60_000) return it.second }
-        val list = runCatching { Session.api?.shortEpg(streamId) ?: emptyList() }.getOrDefault(emptyList())
-        if (list.isNotEmpty()) cache[streamId] = now to list
+        val list = gate.withPermit {
+            var result = emptyList<Programme>()
+            for (attempt in 0..2) {
+                result = runCatching { Session.api?.shortEpg(streamId) ?: emptyList() }.getOrDefault(emptyList())
+                if (result.isNotEmpty()) break
+                kotlinx.coroutines.delay(600L * (attempt + 1))
+            }
+            result
+        }
+        if (list.isNotEmpty()) cache[streamId] = System.currentTimeMillis() to list
         return list
     }
 
