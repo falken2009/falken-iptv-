@@ -85,8 +85,8 @@ fun buildExoPlayer(context: Context): ExoPlayer {
     val http = DefaultHttpDataSource.Factory()
         .setUserAgent(Http.userAgent)
         .setAllowCrossProtocolRedirects(true)
-        .setConnectTimeoutMs(8_000)
-        .setReadTimeoutMs(15_000)
+        .setConnectTimeoutMs(12_000)
+        .setReadTimeoutMs(25_000)
     // Flux TS des fournisseurs IPTV : sans ces options, certaines chaînes restent figées au démarrage
     val extractors = DefaultExtractorsFactory()
         .setTsExtractorFlags(
@@ -442,7 +442,7 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
             if (error != null || vlcPaused) { waited = 0; continue }
             if (engine.player.isPlaying) { waited = 0; continue }
             waited++
-            if (waited >= 8) retry()
+            if (waited >= 12) retry()
         }
     }
 
@@ -461,8 +461,8 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
                     )
                 ) { switchToVlc(); return }
                 // Direct : on retente tout seul, puis VLC prend le relais
-                if (latest.live && retries >= 3) { switchToVlc(); return }
-                if (latest.live && retries < 3) {
+                if (latest.live && retries >= 4) { switchToVlc(); return }
+                if (latest.live && retries < 4) {
                     if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                         player.seekToDefaultPosition()
                         player.prepare()
@@ -532,7 +532,7 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
             if (!latest.live && error == null && !useVlc) {
                 if (player.isPlaying || !player.playWhenReady || everStarted) { stuck = 0; continue }
                 stuck += 2
-                if (stuck >= 8) { stuck = 0; switchToVlc() }
+                if (stuck >= 12) { stuck = 0; switchToVlc() }
                 continue
             }
             if (!latest.live || error != null || useVlc) { stuck = 0; black = 0; continue }
@@ -548,7 +548,7 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
                 lastFrames = frames
                 frozen = if (still) frozen + 2 else 0
                 // Temps bloqué : 2 s suffisent. Images seules bloquées : 6 s (une image fixe est parfois normale)
-                if (posStill && frozen >= 2 || frozen >= 6) {
+                if (posStill && frozen >= 4 || frozen >= 8) {
                     frozen = 0
                     // On se reconnecte ; si ça fige encore, VLC prend le relais
                     if (retries >= 2) switchToVlc() else reconnect()
@@ -557,12 +557,12 @@ fun PlayerScreen(item: PlayItem, onExit: () -> Unit) {
                 if (!still) retries = 0
                 // Le son passe mais pas l'image (écran noir) : VLC prend le relais
                 black = if (player.videoSize.width == 0) black + 2 else 0
-                if (black >= 6) { black = 0; switchToVlc() }
+                if (black >= 8) { black = 0; switchToVlc() }
                 continue
             }
             if (!player.playWhenReady) continue // pause demandée avec la télécommande
             stuck += 2
-            if (stuck >= 6) {
+            if (stuck >= 10) {
                 stuck = 0
                 if (retries >= 2) {
                     // Toujours rien après 2 essais : VLC prend le relais
