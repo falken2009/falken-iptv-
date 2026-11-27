@@ -464,6 +464,7 @@ fun GuideGridScreen(nav: Navigator) {
                         }
                     }
                 }
+                if (Epg.debug.isNotEmpty()) Text(Epg.debug, color = Muted, fontSize = 10.sp, maxLines = 2)
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val channelWidth = 160.dp
                     val gridWidth = maxWidth - channelWidth - 8.dp

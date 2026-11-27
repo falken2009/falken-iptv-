@@ -634,6 +634,9 @@ object Session {
 object Epg {
     private val cache = HashMap<String, Pair<Long, List<Programme>>>()
 
+    /// Dernier résultat du fournisseur (affiché en bas du guide pour comprendre les cases vides)
+    var debug by androidx.compose.runtime.mutableStateOf("")
+
     fun clear() = cache.clear()
 
     /// Le guide demande une chaîne par ligne : beaucoup de fournisseurs refusent trop de demandes à la fois
@@ -645,7 +648,9 @@ object Epg {
         val list = gate.withPermit {
             var result = emptyList<Programme>()
             for (attempt in 0..2) {
-                result = runCatching { Session.api?.shortEpg(streamId) ?: emptyList() }.getOrDefault(emptyList())
+                result = runCatching { Session.api?.shortEpg(streamId) ?: emptyList() }
+                    .onFailure { debug = "Chaîne $streamId : erreur " + (it.message ?: it.javaClass.simpleName).take(120) }
+                    .getOrDefault(emptyList())
                 if (result.isNotEmpty()) break
                 kotlinx.coroutines.delay(600L * (attempt + 1))
             }

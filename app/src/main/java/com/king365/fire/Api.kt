@@ -371,8 +371,14 @@ class XtreamApi(server: String, val username: String, val password: String) {
             )
         }.sortedBy { it.start }
 
-    suspend fun shortEpg(streamId: String) =
-        programmes(obj("get_short_epg", mapOf("stream_id" to streamId, "limit" to "12")))
+    suspend fun shortEpg(streamId: String): List<Programme> {
+        val text = get(mapOf("action" to "get_short_epg", "stream_id" to streamId, "limit" to "12")).trim()
+        val root = if (text.startsWith("{")) JSONObject(text) else JSONObject()
+        val list = programmes(root)
+        Epg.debug = "Chaîne $streamId : ${list.size} programme(s) · réponse : " +
+            text.replace(Regex("\\s+"), " ").take(140)
+        return list
+    }
 
     suspend fun archive(streamId: String) =
         programmes(obj("get_simple_data_table", mapOf("stream_id" to streamId)))
