@@ -308,6 +308,33 @@ fun BigTile(title: String, size: Dp, modifier: Modifier = Modifier, onClick: () 
     }
 }
 
+/// Icône en couleur (émoji) pour les tuiles de l'accueil
+@Composable
+fun EmojiIcon(emoji: String, size: Dp) {
+    Text(emoji, fontSize = (size.value * 0.78f).sp, lineHeight = (size.value * 0.95f).sp, maxLines = 1)
+}
+
+@Composable
+fun SmallTile(title: String, emoji: String, size: Dp, onClick: () -> Unit) {
+    FocusCard(
+        onClick = onClick,
+        modifier = Modifier.size(size),
+        shape = RoundedCornerShape(size * 0.12f),
+        background = RedTileBrush,
+        frame = Color.Black,
+        focusedScale = 1.1f
+    ) {
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            EmojiIcon(emoji, size * 0.42f)
+            Text(title, fontSize = (size.value * 0.13f).sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
+}
+
 @Composable
 fun SmallTile(title: String, icon: ImageVector, size: Dp, onClick: () -> Unit) {
     FocusCard(

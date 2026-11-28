@@ -317,25 +317,23 @@ fun HomeScreen(nav: Navigator) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
                 BigTile(Lang.t("TV EN DIRECT"), big, Modifier.focusRequester(first), onClick = { nav.go(Screen.Live) }) {
-                    LiveTvIcon(big * 0.55f)
+                    EmojiIcon("📺", big * 0.5f)
                 }
-                BigTile(Lang.t("GUIDE"), big, onClick = { nav.go(Screen.Guide) }) { GuideIcon(big * 0.55f) }
-                BigTile(Lang.t("FILMS"), big, onClick = { nav.go(Screen.Movies) }) { VodIcon(big * 0.55f) }
-                BigTile(Lang.t("SÉRIES"), big, onClick = { nav.go(Screen.Series) }) {
-                    Icon(Icons.Outlined.VideoLibrary, contentDescription = null, modifier = Modifier.height(big * 0.55f).width(big * 0.55f))
-                }
+                BigTile(Lang.t("GUIDE"), big, onClick = { nav.go(Screen.Guide) }) { EmojiIcon("🖥️", big * 0.5f) }
+                BigTile(Lang.t("FILMS"), big, onClick = { nav.go(Screen.Movies) }) { EmojiIcon("🎬", big * 0.5f) }
+                BigTile(Lang.t("SÉRIES"), big, onClick = { nav.go(Screen.Series) }) { EmojiIcon("▶️", big * 0.5f) }
             }
 
             Spacer(Modifier.height(18.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                SmallTile(Lang.t("FAVORIS"), Icons.Outlined.StarOutline, small) { nav.go(Screen.Favorites) }
-                SmallTile(Lang.t("MA LISTE"), Icons.Outlined.BookmarkBorder, small) { nav.go(Screen.Watchlist) }
-                SmallTile(Lang.t("MULTI"), Icons.Outlined.GridView, small) { nav.go(Screen.Multi) }
-                SmallTile(Lang.t("REPLAY"), Icons.Outlined.History, small) { nav.go(Screen.Replay) }
-                SmallTile(Lang.t("RECHERCHE"), Icons.Outlined.Search, small) { nav.go(Screen.Search) }
-                SmallTile(Lang.t("COMPTE"), Icons.Outlined.Person, small) { nav.go(Screen.Account) }
-                SmallTile(Lang.t("RÉGLAGES"), Icons.Outlined.Settings, small) { nav.go(Screen.Settings) }
+                SmallTile(Lang.t("FAVORIS"), "☆", small) { nav.go(Screen.Favorites) }
+                SmallTile(Lang.t("MA LISTE"), "🔖", small) { nav.go(Screen.Watchlist) }
+                SmallTile(Lang.t("MULTI"), "▦", small) { nav.go(Screen.Multi) }
+                SmallTile(Lang.t("REPLAY"), "⟲", small) { nav.go(Screen.Replay) }
+                SmallTile(Lang.t("RECHERCHE"), "🔍", small) { nav.go(Screen.Search) }
+                SmallTile(Lang.t("COMPTE"), "👤", small) { nav.go(Screen.Account) }
+                SmallTile(Lang.t("RÉGLAGES"), "⚙", small) { nav.go(Screen.Settings) }
             }
 
             if (filmsEnCours.isNotEmpty()) {

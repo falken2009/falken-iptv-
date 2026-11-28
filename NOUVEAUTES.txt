@@ -4,3 +4,4 @@ Chaînes : bascule plus rapide vers l'autre format ou VLC quand une chaîne ne d
 Guide : les programmes se chargent mieux (demandes limitées et réessayées quand le fournisseur refuse)
 Chaînes : délais de reconnexion rééquilibrés pour éviter les coupures inutiles
 Accueil : cadre noir autour des tuiles (TV en direct, Guide, Films, Séries…)
+Accueil : icônes en couleur sur les tuiles
