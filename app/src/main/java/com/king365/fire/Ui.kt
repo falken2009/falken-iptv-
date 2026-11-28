@@ -154,6 +154,8 @@ fun FocusCard(
     selected: Boolean = false,
     onMenu: (() -> Unit)? = null,
     onFocus: (() -> Unit)? = null,
+    /// Cadre uni autour de la carte quand elle n'est pas sélectionnée (tuiles de l'accueil : noir)
+    frame: Color? = null,
     content: @Composable BoxScope.(focused: Boolean) -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -185,8 +187,8 @@ fun FocusCard(
                 shape
             )
             .border(
-                width = if (focused) 3.dp else 1.dp,
-                color = if (focused) Color.White else Color.White.copy(alpha = 0.22f),
+                width = if (focused) 3.dp else if (frame != null) 4.dp else 1.dp,
+                color = if (focused) Color.White else frame ?: Color.White.copy(alpha = 0.22f),
                 shape = shape
             )
             .combinedClickable(onClick = onClick, onLongClick = onMenu)
@@ -291,6 +293,7 @@ fun BigTile(title: String, size: Dp, modifier: Modifier = Modifier, onClick: () 
         modifier = modifier.size(size),
         shape = RoundedCornerShape(size * 0.1f),
         background = RedTileBrush,
+        frame = Color.Black,
         focusedScale = 1.08f
     ) {
         Column(
@@ -312,6 +315,7 @@ fun SmallTile(title: String, icon: ImageVector, size: Dp, onClick: () -> Unit) {
         modifier = Modifier.size(size),
         shape = RoundedCornerShape(size * 0.12f),
         background = RedTileBrush,
+        frame = Color.Black,
         focusedScale = 1.1f
     ) {
         Column(
