@@ -6,3 +6,4 @@ Chaînes : délais de reconnexion rééquilibrés pour éviter les coupures inut
 Accueil : cadre noir autour des tuiles (TV en direct, Guide, Films, Séries…)
 Accueil : icônes en couleur sur les tuiles
 Couleurs : rouge un peu moins vif
+Couleurs : rouge bordeaux
