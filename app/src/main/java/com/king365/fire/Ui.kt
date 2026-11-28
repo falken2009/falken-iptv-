@@ -72,7 +72,7 @@ import coil.compose.AsyncImage
 
 /// Thème de couleurs choisi dans les Réglages
 enum class KingThemeChoice(val label: String, val main: Color, val dark: Color) {
-    RED("Rouge", Color(0xFFE50914), Color(0xFF6B0005)),
+    RED("Rouge", Color(0xFFB8141C), Color(0xFF4F0306)),
     BLUE("Bleu", Color(0xFF0D6BF2), Color(0xFF051F66)),
     GREEN("Vert", Color(0xFF0DAD4D), Color(0xFF00421A)),
     GOLD("Or", Color(0xFFD99E1A), Color(0xFF664500))

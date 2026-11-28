@@ -5,3 +5,4 @@ Guide : les programmes se chargent mieux (demandes limitées et réessayées qua
 Chaînes : délais de reconnexion rééquilibrés pour éviter les coupures inutiles
 Accueil : cadre noir autour des tuiles (TV en direct, Guide, Films, Séries…)
 Accueil : icônes en couleur sur les tuiles
+Couleurs : rouge un peu moins vif
